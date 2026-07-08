@@ -1,0 +1,280 @@
+<!DOCTYPE html>
+<html lang="ko">
+<head>
+<meta charset="UTF-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1.0" />
+<title>군자청소년문화센터 </title>
+<link rel="stylesheet" href="style.css" />
+</head>
+<body>
+
+  <!-- ===================== NOTIFICATION TOAST ===================== -->
+  <div id="notification" class="notification hidden">
+    <svg class="icon icon-lg icon-blue" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="10"></circle><path d="M8 12.5l2.5 2.5L16 9"></path></svg>
+    <span id="notification-text" class="notification-text"></span>
+  </div>
+
+  <!-- ===================== PASSWORD MODAL ===================== -->
+  <div id="password-modal" class="modal-overlay hidden">
+    <div class="modal-box modal-box-sm">
+      <h2 class="modal-title-center">관리자 인증</h2>
+      <input id="password-input" type="password" class="password-input" placeholder="••••" />
+      <div class="modal-actions">
+        <button id="password-cancel-btn" class="btn btn-text-cancel">취소</button>
+        <button id="password-confirm-btn" class="btn btn-primary btn-block">확인</button>
+      </div>
+    </div>
+  </div>
+
+  <!-- ===================== EDIT BOOKING MODAL ===================== -->
+  <div id="edit-booking-modal" class="modal-overlay hidden" style="z-index:60;">
+    <div class="modal-box modal-box-lg">
+      <div class="modal-header-row">
+        <h3 class="modal-title">예약 정보 수정</h3>
+        <button id="edit-modal-close-btn" class="icon-btn icon-btn-round">
+          <svg class="icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><line x1="18" y1="6" x2="6" y2="18"></line><line x1="6" y1="6" x2="18" y2="18"></line></svg>
+        </button>
+      </div>
+      <div id="edit-booking-members" class="edit-booking-members"></div>
+      <button id="edit-booking-save-btn" class="btn btn-primary btn-block btn-xl mt-6">저장하기</button>
+    </div>
+  </div>
+
+  <!-- ===================== HEADER ===================== -->
+  <header class="header">
+    <div class="container header-inner">
+      <div>
+        <img
+          src="logo.jpg"
+          alt="군자청소년문화센터 로고"
+          style="display:block;height:130px;width:auto;"
+        />
+      </div>
+      <div class="header-right">
+        <div id="date-display" class="date-pill">TODAY</div>
+        <button id="admin-toggle-btn" class="icon-btn icon-btn-large">
+          <svg class="icon icon-xl" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="3" y="3" width="7" height="9"></rect><rect x="14" y="3" width="7" height="5"></rect><rect x="14" y="12" width="7" height="9"></rect><rect x="3" y="16" width="7" height="5"></rect></svg>
+        </button>
+      </div>
+    </div>
+  </header>
+
+  <!-- ===================== NAV TABS ===================== -->
+  <nav class="nav-tabs">
+    <div class="container nav-tabs-inner">
+      <button id="tab-checkin-btn" class="nav-tab-btn active" data-tab="checkin">방문 등록</button>
+      <button id="tab-reservations-btn" class="nav-tab-btn" data-tab="reservations">시설 예약</button>
+    </div>
+  </nav>
+
+  <!-- ===================== MAIN ===================== -->
+  <main class="container main-content">
+
+    <!-- ---------- CHECK-IN TAB ---------- -->
+    <section id="tab-checkin" class="tab-panel card card-xl">
+      <div class="checkin-header">
+        <h2 class="section-title-center">방문을 환영합니다! 👋</h2>
+      </div>
+      <form id="checkin-form" class="checkin-form">
+        <div class="checkin-grid">
+          <div class="field">
+            <label class="field-label">이름 <span class="required">*</span></label>
+            <input id="checkin-name" type="text" placeholder="성함을 입력하세요" class="input input-lg" />
+          </div>
+          <div class="field">
+            <label class="field-label">나이 <span class="required">*</span></label>
+            <input id="checkin-age" type="number" placeholder="나이(숫자만)" class="input input-lg" />
+          </div>
+          <div class="field">
+            <label class="field-label">성별 <span class="required">*</span></label>
+            <div id="checkin-gender-group" class="toggle-group">
+              <button type="button" class="toggle-btn active" data-gender="남성">남성</button>
+              <button type="button" class="toggle-btn" data-gender="여성">여성</button>
+            </div>
+          </div>
+        </div>
+
+        <div class="activities-box">
+          <h3 class="activities-title">오늘 군자청소년문화센터에서는 뭐하고 놀꺼야? 😊</h3>
+          <div id="activities-grid" class="activities-grid">
+            <button type="button" class="activity-card" data-activity="휴식">
+              <div class="activity-icon activity-icon-orange"><svg class="icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M18 8h1a4 4 0 0 1 0 8h-1"></path><path d="M2 8h16v9a4 4 0 0 1-4 4H6a4 4 0 0 1-4-4V8z"></path><line x1="6" y1="1" x2="6" y2="4"></line><line x1="10" y1="1" x2="10" y2="4"></line><line x1="14" y1="1" x2="14" y2="4"></line></svg></div>
+              <span class="activity-label">휴식</span>
+            </button>
+            <button type="button" class="activity-card" data-activity="보드게임">
+              <div class="activity-icon activity-icon-blue"><svg class="icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><line x1="6" y1="12" x2="10" y2="12"></line><line x1="8" y1="10" x2="8" y2="14"></line><circle cx="15.5" cy="10.5" r="0.5" fill="currentColor"></circle><circle cx="18.5" cy="13.5" r="0.5" fill="currentColor"></circle><rect x="2" y="6" width="20" height="12" rx="3"></rect></svg></div>
+              <span class="activity-label">보드게임</span>
+            </button>
+            <button type="button" class="activity-card" data-activity="유스네컷">
+              <div class="activity-icon activity-icon-pink"><svg class="icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M23 19a2 2 0 0 1-2 2H3a2 2 0 0 1-2-2V8a2 2 0 0 1 2-2h4l2-3h6l2 3h4a2 2 0 0 1 2 2z"></path><circle cx="12" cy="13" r="4"></circle></svg></div>
+              <span class="activity-label">유스네컷</span>
+            </button>
+            <button type="button" class="activity-card" data-activity="독서">
+              <div class="activity-icon activity-icon-emerald"><svg class="icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M2 3h6a4 4 0 0 1 4 4v14a3 3 0 0 0-3-3H2z"></path><path d="M22 3h-6a4 4 0 0 0-4 4v14a3 3 0 0 1 3-3h7z"></path></svg></div>
+              <span class="activity-label">독서</span>
+            </button>
+            <button type="button" class="activity-card" data-activity="컬러비즈">
+              <div class="activity-icon activity-icon-purple"><svg class="icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="13.5" cy="6.5" r="0.5" fill="currentColor"></circle><circle cx="17.5" cy="10.5" r="0.5" fill="currentColor"></circle><circle cx="8.5" cy="7.5" r="0.5" fill="currentColor"></circle><circle cx="6.5" cy="12.5" r="0.5" fill="currentColor"></circle><path d="M12 2C6.5 2 2 6.5 2 12s4.5 10 10 10c.926 0 1.648-.746 1.648-1.688 0-.437-.18-.835-.437-1.125-.29-.289-.438-.652-.438-1.125a1.64 1.64 0 0 1 1.668-1.668h1.996c3.051 0 5.555-2.503 5.555-5.554C21.965 6.012 17.461 2 12 2z"></path></svg></div>
+              <span class="activity-label">컬러비즈</span>
+            </button>
+          </div>
+        </div>
+
+        <button type="submit" class="btn btn-primary btn-block btn-xxl">방문 등록 완료!</button>
+      </form>
+    </section>
+
+    <!-- ---------- RESERVATIONS TAB ---------- -->
+    <section id="tab-reservations" class="tab-panel hidden">
+      <div class="res-view-switch">
+        <button id="res-view-new-btn" class="pill-btn active" data-view="new">시설 예약하기</button>
+        <button id="res-view-mybookings-btn" class="pill-btn" data-view="my-bookings">내 예약 확인 및 수정</button>
+      </div>
+
+      <!-- NEW RESERVATION VIEW -->
+      <div id="res-view-new" class="card card-xl">
+        <div class="res-header-row">
+          <div>
+            <h2 class="res-title">시설 예약 신청 <span class="res-title-sub">(최대 4명까지 이용가능)</span></h2>
+            <div class="notice-pill">
+              <svg class="icon icon-sm" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="10"></circle><line x1="12" y1="16" x2="12" y2="12"></line><line x1="12" y1="8" x2="12.01" y2="8"></line></svg>
+              <span>시설별 하루 1회 예약 가능</span>
+            </div>
+          </div>
+        </div>
+
+        <div id="facility-select" class="facility-select">
+          <button class="facility-btn active" data-facility="AR 스포츠">
+            <svg class="icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M2 8l10-5 10 5-10 5-10-5z"></path><path d="M6 10.5v5c0 1 2.5 2.5 6 2.5s6-1.5 6-2.5v-5"></path></svg>
+            <span>AR 스포츠</span>
+          </button>
+          <button class="facility-btn" data-facility="노래방1">
+            <svg class="icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M12 1a3 3 0 0 0-3 3v8a3 3 0 0 0 6 0V4a3 3 0 0 0-3-3z"></path><path d="M19 10v2a7 7 0 0 1-14 0v-2"></path><line x1="12" y1="19" x2="12" y2="23"></line></svg>
+            <span>노래방 1실</span>
+          </button>
+          <button class="facility-btn" data-facility="노래방2">
+            <svg class="icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M12 1a3 3 0 0 0-3 3v8a3 3 0 0 0 6 0V4a3 3 0 0 0-3-3z"></path><path d="M19 10v2a7 7 0 0 1-14 0v-2"></path><line x1="12" y1="19" x2="12" y2="23"></line></svg>
+            <span>노래방 2실</span>
+          </button>
+        </div>
+
+        <div class="res-body-grid">
+          <div class="time-select-section">
+            <h3 class="section-subtitle">
+              <svg class="icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="10"></circle><polyline points="12 6 12 12 16 14"></polyline></svg>
+              시간 선택
+            </h3>
+            <div class="time-slots-box">
+              <div>
+                <span class="time-period-tag time-period-am">AM 오전</span>
+                <div id="am-slots" class="time-slots-grid"></div>
+              </div>
+              <div>
+                <span class="time-period-tag time-period-pm">PM 오후</span>
+                <div id="pm-slots" class="time-slots-grid"></div>
+              </div>
+            </div>
+          </div>
+
+          <div class="members-section">
+            <div class="members-header-row">
+              <h3 class="section-subtitle">
+                <svg class="icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M17 21v-2a4 4 0 0 0-4-4H5a4 4 0 0 0-4 4v2"></path><circle cx="9" cy="7" r="4"></circle><path d="M23 21v-2a4 4 0 0 0-3-3.87"></path><path d="M16 3.13a4 4 0 0 1 0 7.75"></path></svg>
+                이용자 정보 입력
+              </h3>
+              <button id="add-member-btn" class="link-btn">+ 인원 추가</button>
+            </div>
+            <div id="res-members-list" class="res-members-list"></div>
+            <button id="reservation-submit-btn" class="btn btn-secondary btn-block btn-xl mt-4" disabled>인원수대로 정보를 빠짐없이 입력해주세요</button>
+          </div>
+        </div>
+      </div>
+
+      <!-- MY BOOKINGS VIEW -->
+      <div id="res-view-mybookings" class="hidden">
+        <div class="card card-lg mybookings-search-card">
+          <div class="mybookings-search-inner">
+            <button id="back-to-new-btn" class="link-btn-back">
+              <svg class="icon icon-sm" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polyline points="15 18 9 12 15 6"></polyline></svg>
+              예약 화면으로
+            </button>
+            <h2 class="section-title-center">내 예약 조회</h2>
+            <input id="search-name" type="text" placeholder="이름" class="input input-lg" />
+            <input id="search-age" type="number" placeholder="나이" class="input input-lg" />
+            <button id="find-bookings-btn" class="btn btn-secondary btn-block btn-lg">
+              <svg class="icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="11" cy="11" r="8"></circle><line x1="21" y1="21" x2="16.65" y2="16.65"></line></svg>
+              조회하기
+            </button>
+          </div>
+        </div>
+        <div id="my-bookings-results" class="my-bookings-grid"></div>
+      </div>
+    </section>
+
+    <!-- ---------- ADMIN TAB ---------- -->
+    <section id="tab-admin" class="tab-panel hidden">
+      <div class="admin-header-row">
+        <h2 class="admin-title">시스템 실적 통계</h2>
+        <div class="admin-header-actions">
+          <button id="csv-download-btn" class="btn btn-emerald">
+            <svg class="icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"></path><polyline points="7 10 12 15 17 10"></polyline><line x1="12" y1="15" x2="12" y2="3"></line></svg>
+            통합 CSV 다운로드
+          </button>
+          <button id="admin-logout-btn" class="icon-btn icon-btn-outline">
+            <svg class="icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><line x1="18" y1="6" x2="6" y2="18"></line><line x1="6" y1="6" x2="18" y2="18"></line></svg>
+          </button>
+        </div>
+      </div>
+
+      <div class="stats-grid">
+        <div class="stat-card">
+          <div class="stat-icon"><svg class="icon icon-xl" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M16 21v-2a4 4 0 0 0-4-4H5a4 4 0 0 0-4 4v2"></path><circle cx="8.5" cy="7" r="4"></circle><line x1="20" y1="8" x2="20" y2="14"></line><line x1="23" y1="11" x2="17" y2="11"></line></svg></div>
+          <p class="stat-label">전체 방문</p>
+          <p id="stat-visits" class="stat-value stat-value-blue">0</p>
+        </div>
+        <div class="stat-card">
+          <div class="stat-icon"><svg class="icon icon-xl" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="10"></circle><polyline points="12 6 12 12 16 14"></polyline></svg></div>
+          <p class="stat-label">시설 예약</p>
+          <p id="stat-reservations" class="stat-value stat-value-indigo">0</p>
+        </div>
+        <div class="stat-card">
+          <div class="stat-icon"><svg class="icon icon-xl" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M23 19a2 2 0 0 1-2 2H3a2 2 0 0 1-2-2V8a2 2 0 0 1 2-2h4l2-3h6l2 3h4a2 2 0 0 1 2 2z"></path><circle cx="12" cy="13" r="4"></circle></svg></div>
+          <p class="stat-label">유스네컷</p>
+          <p id="stat-youthcut" class="stat-value stat-value-pink">0</p>
+        </div>
+        <div class="stat-card">
+          <div class="stat-icon"><svg class="icon icon-xl" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M2 8l10-5 10 5-10 5-10-5z"></path><path d="M6 10.5v5c0 1 2.5 2.5 6 2.5s6-1.5 6-2.5v-5"></path></svg></div>
+          <p class="stat-label">AR 스포츠</p>
+          <p id="stat-ar" class="stat-value stat-value-emerald">0</p>
+        </div>
+      </div>
+
+      <div class="card card-md">
+        <h3 class="table-title">최근 방문자 목록</h3>
+        <div class="table-scroll">
+          <table class="data-table">
+            <thead>
+              <tr>
+                <th>시간</th>
+                <th>이름</th>
+                <th>나이</th>
+                <th>활동</th>
+              </tr>
+            </thead>
+            <tbody id="admin-visits-tbody">
+              <tr><td colspan="4" class="table-empty">등록된 방문 내역이 없습니다.</td></tr>
+            </tbody>
+          </table>
+        </div>
+      </div>
+    </section>
+
+  </main>
+
+  <footer class="footer">
+    &copy; 2024 Gunja Youth Culture Center Management System. All Rights Reserved.
+  </footer>
+
+  <script type="module" src="app.js"></script>
+</body>
+</html>
