@@ -1,16 +1,31 @@
-// js/firebase.js
-// Firebase app / auth / firestore initialization.
-// Logic kept identical to the original React version.
+// firebase.js
 
-import { initializeApp } from "https://www.gstatic.com/firebasejs/10.12.2/firebase-app.js";
-import { getAuth } from "https://www.gstatic.com/firebasejs/10.12.2/firebase-auth.js";
-import { getFirestore } from "https://www.gstatic.com/firebasejs/10.12.2/firebase-firestore.js";
+import { initializeApp } from "https://www.gstatic.com/firebasejs/12.15.0/firebase-app.js";
+import { getAuth } from "https://www.gstatic.com/firebasejs/12.15.0/firebase-auth.js";
+import {
+  getFirestore,
+  enableIndexedDbPersistence,
+} from "https://www.gstatic.com/firebasejs/12.15.0/firebase-firestore.js";
 
-const firebaseConfig =
-  typeof __firebase_config !== "undefined" ? JSON.parse(__firebase_config) : {};
+const firebaseConfig = {
+  apiKey: "AIzaSyB782bETDkgEcCIuAiTmWMr_OlTwVK9gXk",
+  authDomain: "shgunza.firebaseapp.com",
+  projectId: "shgunza",
+  storageBucket: "shgunza.firebasestorage.app",
+  messagingSenderId: "293638725184",
+  appId: "1:293638725184:web:f4fa4e4b7d7459166209a5",
+  measurementId: "G-BHN2203H16",
+};
 
 export const app = initializeApp(firebaseConfig);
+
 export const auth = getAuth(app);
+
 export const db = getFirestore(app);
-export const appId =
-  typeof __app_id !== "undefined" ? __app_id : "default-app-id";
+
+// Enable offline persistence so data continues to be available during brief network interruptions.
+enableIndexedDbPersistence(db).catch((err) => {
+  console.warn("Firestore offline persistence could not be enabled:", err.code);
+});
+
+export default app;

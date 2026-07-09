@@ -1,17 +1,14 @@
 // js/visit.js
 // Handles the 방문 등록 (check-in) form.
-// Works in local preview mode when Firebase is unavailable.
 
 import { notify } from "./notification.js";
+import { db } from "./firebase.js";
+import { collection, addDoc, onSnapshot } from "https://www.gstatic.com/firebasejs/12.15.0/firebase-firestore.js";
 
 let visits = [];
 const changeListeners = [];
 
-let firebaseBundle = null;
-let firestoreApi = null;
-let currentUser = { uid: "local-preview-user" };
-
-// form state (mirrors the original formData useState)
+// form state
 let formData = { name: "", age: "", gender: "남성", activities: [] };
 
 const checkinForm = document.getElementById("checkin-form");
@@ -32,38 +29,6 @@ function notifyChange() {
   changeListeners.forEach((cb) => cb(visits));
 }
 
-async function loadFirebaseSupport() {
-  if (firebaseBundle || firestoreApi) {
-    return;
-  }
-
-  try {
-    const [firebaseModule, authModule, firestoreModule] = await Promise.all([
-      import("./firebase.js"),
-      import("./auth.js"),
-      import("https://www.gstatic.com/firebasejs/10.12.2/firebase-firestore.js"),
-    ]);
-
-    firebaseBundle = firebaseModule;
-    firestoreApi = firestoreModule;
-
-    const user = authModule.getCurrentUser?.();
-    if (user) {
-      currentUser = user;
-    }
-
-    if (authModule.onAuthReady) {
-      authModule.onAuthReady((nextUser) => {
-        if (nextUser) {
-          currentUser = nextUser;
-        }
-      });
-    }
-  } catch (error) {
-    console.warn("visit.js running without Firebase:", error);
-  }
-}
-
 function resetFormUI() {
   formData = { name: "", age: "", gender: "남성", activities: [] };
   nameInput.value = "";
@@ -76,11 +41,6 @@ function resetFormUI() {
   activitiesGrid.querySelectorAll(".activity-card").forEach((card) => {
     card.classList.remove("active");
   });
-}
-
-function addLocalVisit(newVisit) {
-  visits = [{ id: `local-visit-${Date.now()}`, ...newVisit }, ...visits];
-  notifyChange();
 }
 
 async function handleCheckIn(e) {
@@ -108,34 +68,14 @@ async function handleCheckIn(e) {
     createdAt: now.toISOString(),
   };
 
-  if (
-    firebaseBundle &&
-    firestoreApi &&
-    currentUser &&
-    firebaseBundle.db &&
-    firebaseBundle.appId
-  ) {
-    try {
-      const visitsRef = firestoreApi.collection(
-        firebaseBundle.db,
-        "artifacts",
-        firebaseBundle.appId,
-        "public",
-        "data",
-        "visits"
-      );
-      await firestoreApi.addDoc(visitsRef, newVisit);
-      resetFormUI();
-      notify("입장이 완료되었습니다!");
-      return;
-    } catch (error) {
-      console.error("Check-in error:", error);
-    }
+  try {
+    await addDoc(collection(db, "visits"), newVisit);
+    resetFormUI();
+    notify("입장이 완료되었습니다!");
+  } catch (error) {
+    console.error("Check-in error:", error);
+    notify("방문 등록 중 오류가 발생했습니다.");
   }
-
-  addLocalVisit(newVisit);
-  resetFormUI();
-  notify("입장이 완료되었습니다!");
 }
 
 function wireForm() {
@@ -165,33 +105,19 @@ function wireForm() {
 }
 
 function subscribeToVisits() {
-  if (!firebaseBundle || !firestoreApi) {
-    return;
-  }
+  const visitsRef = collection(db, "visits");
 
-  const visitsRef = firestoreApi.collection(
-    firebaseBundle.db,
-    "artifacts",
-    firebaseBundle.appId,
-    "public",
-    "data",
-    "visits"
-  );
-
-  firestoreApi.onSnapshot(
-    visitsRef,
-    (snapshot) => {
-      const data = snapshot.docs.map((d) => ({ id: d.id, ...d.data() }));
-      data.sort((a, b) => new Date(b.createdAt) - new Date(a.createdAt));
-      visits = data;
-      notifyChange();
-    },
-    (error) => console.error("Error fetching visits:", error)
-  );
+  onSnapshot(visitsRef, (snapshot) => {
+    const data = snapshot.docs.map((d) => ({ id: d.id, ...d.data() }));
+    data.sort((a, b) => new Date(b.createdAt) - new Date(a.createdAt));
+    visits = data;
+    notifyChange();
+  }, (error) => {
+    console.error("Error fetching visits:", error);
+  });
 }
 
-export async function initVisit() {
+export function initVisit() {
   wireForm();
-  await loadFirebaseSupport();
   subscribeToVisits();
 }

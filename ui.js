@@ -1,10 +1,14 @@
-// js/ui.js
-// Tab navigation (checkin / reservations / admin) and reservation sub-view
-// (new / my-bookings) switching. UI stays available even without Firebase.
+// ui.js
 
 import { getFixedDateDisplay } from "./utils.js";
 import { showPasswordModal, hidePasswordModal } from "./modal.js";
 import { notify } from "./notification.js";
+
+import {
+    loginAdmin,
+    logoutAdmin,
+    isAdminAuthenticated
+} from "./auth.js";
 
 const tabCheckinBtn = document.getElementById("tab-checkin-btn");
 const tabReservationsBtn = document.getElementById("tab-reservations-btn");
@@ -15,162 +19,168 @@ const tabCheckinPanel = document.getElementById("tab-checkin");
 const tabReservationsPanel = document.getElementById("tab-reservations");
 const tabAdminPanel = document.getElementById("tab-admin");
 
-const passwordInputEl = document.getElementById("password-input");
+const passwordInput = document.getElementById("password-input");
 const passwordConfirmBtn = document.getElementById("password-confirm-btn");
 const passwordCancelBtn = document.getElementById("password-cancel-btn");
 
 const resViewNewBtn = document.getElementById("res-view-new-btn");
-const resViewMyBookingsBtn = document.getElementById(
-  "res-view-mybookings-btn"
-);
+const resViewMyBookingsBtn = document.getElementById("res-view-mybookings-btn");
+
 const resViewNewPanel = document.getElementById("res-view-new");
 const resViewMyBookingsPanel = document.getElementById("res-view-mybookings");
 
-const dateDisplayEl = document.getElementById("date-display");
+const dateDisplay = document.getElementById("date-display");
 
-const panelsByTab = {
-  checkin: tabCheckinPanel,
-  reservations: tabReservationsPanel,
-  admin: tabAdminPanel,
+const panels = {
+    checkin: tabCheckinPanel,
+    reservations: tabReservationsPanel,
+    admin: tabAdminPanel
 };
 
-const navButtonsByTab = {
-  checkin: tabCheckinBtn,
-  reservations: tabReservationsBtn,
+const navButtons = {
+    checkin: tabCheckinBtn,
+    reservations: tabReservationsBtn
 };
 
-let activeTab = "checkin";
-let onAdminEnter = null; // callback set by admin.js to refresh stats on entry
-let adminAuthenticated = false;
-
-function isAdminAuthenticatedLocal() {
-  return adminAuthenticated;
-}
-
-function checkAdminPasswordLocal(passwordInput) {
-  if (passwordInput === "1234") {
-    adminAuthenticated = true;
-    return true;
-  }
-  return false;
-}
-
-function logoutAdminLocal() {
-  adminAuthenticated = false;
-}
+let onAdminEnter = null;
 
 export function setOnAdminEnter(callback) {
-  onAdminEnter = callback;
+    onAdminEnter = callback;
 }
 
-export function switchTab(tabName) {
-  activeTab = tabName;
+export function switchTab(tab) {
 
-  Object.entries(panelsByTab).forEach(([key, panel]) => {
-    if (panel) {
-      panel.classList.toggle("hidden", key !== tabName);
+    Object.keys(panels).forEach(key => {
+        panels[key].classList.toggle("hidden", key !== tab);
+    });
+
+    Object.keys(navButtons).forEach(key => {
+        navButtons[key].classList.toggle("active", key === tab);
+    });
+
+    adminToggleBtn.classList.toggle("active", tab === "admin");
+
+    if (tab === "admin" && onAdminEnter) {
+        onAdminEnter();
     }
-  });
-
-  Object.entries(navButtonsByTab).forEach(([key, btn]) => {
-    if (btn) {
-      btn.classList.toggle("active", key === tabName);
-    }
-  });
-
-  if (adminToggleBtn) {
-    adminToggleBtn.classList.toggle("active", tabName === "admin");
-  }
-
-  if (tabName === "admin" && typeof onAdminEnter === "function") {
-    onAdminEnter();
-  }
 }
 
 export function switchResView(view) {
-  if (resViewNewPanel) {
-    resViewNewPanel.classList.toggle("hidden", view !== "new");
-  }
-  if (resViewMyBookingsPanel) {
-    resViewMyBookingsPanel.classList.toggle("hidden", view !== "my-bookings");
-  }
-  if (resViewNewBtn) {
-    resViewNewBtn.classList.toggle("active", view === "new");
-  }
-  if (resViewMyBookingsBtn) {
-    resViewMyBookingsBtn.classList.toggle("active", view === "my-bookings");
-  }
+
+    resViewNewPanel.classList.toggle(
+        "hidden",
+        view !== "new"
+    );
+
+    resViewMyBookingsPanel.classList.toggle(
+        "hidden",
+        view !== "my-bookings"
+    );
+
+    resViewNewBtn.classList.toggle(
+        "active",
+        view === "new"
+    );
+
+    resViewMyBookingsBtn.classList.toggle(
+        "active",
+        view === "my-bookings"
+    );
 }
 
-function handleAdminAuth() {
-  const value = passwordInputEl.value;
-  if (checkAdminPasswordLocal(value)) {
+async function adminLogin() {
+
+    const password = passwordInput.value.trim();
+
+    if (!password) {
+
+        notify("비밀번호를 입력해주세요.");
+
+        return;
+    }
+
+    passwordConfirmBtn.disabled = true;
+
+    const result = await loginAdmin(password);
+
+    passwordConfirmBtn.disabled = false;
+
+    if (!result.success) {
+
+        notify("관리자 로그인 실패");
+
+        return;
+    }
+
     hidePasswordModal();
+
+    passwordInput.value = "";
+
     switchTab("admin");
-  } else {
-    notify("비밀번호 오류");
-  }
-  passwordInputEl.value = "";
+}
+
+async function adminLogout() {
+
+    await logoutAdmin();
+
+    switchTab("checkin");
+
+    notify("로그아웃되었습니다.");
 }
 
 export function initUI() {
-  // Header date display
-  const today = new Date();
-  if (dateDisplayEl) {
-    dateDisplayEl.textContent = getFixedDateDisplay(today);
-  }
 
-  // Main nav tabs
-  if (tabCheckinBtn) {
-    tabCheckinBtn.addEventListener("click", () => switchTab("checkin"));
-  }
-  if (tabReservationsBtn) {
-    tabReservationsBtn.addEventListener("click", () => {
-      switchTab("reservations");
-      switchResView("new");
-    });
-  }
+    dateDisplay.textContent =
+        getFixedDateDisplay(new Date());
 
-  // Admin gate
-  if (adminToggleBtn) {
-    adminToggleBtn.addEventListener("click", () => {
-      if (isAdminAuthenticatedLocal()) {
-        switchTab("admin");
-      } else {
+    tabCheckinBtn.onclick = () => {
+
+        switchTab("checkin");
+
+    };
+
+    tabReservationsBtn.onclick = () => {
+
+        switchTab("reservations");
+
+        switchResView("new");
+
+    };
+
+    adminToggleBtn.onclick = () => {
+
+        if (isAdminAuthenticated()) {
+
+            switchTab("admin");
+
+            return;
+        }
+
         showPasswordModal();
-      }
+    };
+
+    adminLogoutBtn.onclick = adminLogout;
+
+    passwordConfirmBtn.onclick = adminLogin;
+
+    passwordCancelBtn.onclick = hidePasswordModal;
+
+    passwordInput.addEventListener("keydown", e => {
+
+        if (e.key === "Enter") {
+
+            adminLogin();
+
+        }
+
     });
-  }
 
-  if (adminLogoutBtn) {
-    adminLogoutBtn.addEventListener("click", () => {
-      logoutAdminLocal();
-      switchTab("checkin");
-    });
-  }
+    resViewNewBtn.onclick = () => switchResView("new");
 
-  if (passwordConfirmBtn) {
-    passwordConfirmBtn.addEventListener("click", handleAdminAuth);
-  }
-  if (passwordCancelBtn) {
-    passwordCancelBtn.addEventListener("click", hidePasswordModal);
-  }
-  if (passwordInputEl) {
-    passwordInputEl.addEventListener("keydown", (e) => {
-      if (e.key === "Enter") handleAdminAuth();
-    });
-  }
+    resViewMyBookingsBtn.onclick = () =>
+        switchResView("my-bookings");
 
-  // Reservation sub-view switch
-  if (resViewNewBtn) {
-    resViewNewBtn.addEventListener("click", () => switchResView("new"));
-  }
-  if (resViewMyBookingsBtn) {
-    resViewMyBookingsBtn.addEventListener("click", () =>
-      switchResView("my-bookings")
-    );
-  }
+    switchTab("checkin");
 
-  switchTab("checkin");
-  switchResView("new");
+    switchResView("new");
 }

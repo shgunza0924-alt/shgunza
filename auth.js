@@ -1,61 +1,107 @@
-// js/auth.js
-// Firebase authentication (anonymous / custom token) + admin password gate.
+// auth.js
 
 import {
+  signInWithEmailAndPassword,
   signInAnonymously,
-  signInWithCustomToken,
+  signOut,
   onAuthStateChanged,
-} from "https://www.gstatic.com/firebasejs/10.12.2/firebase-auth.js";
+} from "https://www.gstatic.com/firebasejs/12.15.0/firebase-auth.js";
+
 import { auth } from "./firebase.js";
 
-const ADMIN_PASSWORD = "1234";
+/*
+ * 관리자 이메일
+ * UI는 변경하지 않고
+ * 비밀번호만 입력받는다.
+ */
+const ADMIN_EMAIL = "shgunza0924@gmail.com";
 
 let currentUser = null;
-let isAuth = false; // admin authenticated flag
+let authReady = false;
+let isAdmin = false;
+
 const readyCallbacks = [];
+const authCallbacks = [];
 
-// ===== Firebase sign-in (anonymous or custom token) =====
-export async function initFirebaseAuth() {
-  try {
-    if (typeof __initial_auth_token !== "undefined" && __initial_auth_token) {
-      await signInWithCustomToken(auth, __initial_auth_token);
+export function initFirebaseAuth() {
+  onAuthStateChanged(auth, async (user) => {
+    if (user) {
+      currentUser = user;
+      authReady = true;
+      
+      // Identify the admin strictly by email to prevent anonymous users from gaining admin UI access
+      isAdmin = user.email === ADMIN_EMAIL;
+
+      readyCallbacks.forEach((cb) => cb(user));
+      authCallbacks.forEach((cb) => cb(user));
     } else {
-      await signInAnonymously(auth);
+      isAdmin = false;
+      // Auto-authenticate unknown public users silently so they have database write access
+      try {
+        await signInAnonymously(auth);
+      } catch (error) {
+        console.error("Anonymous authentication failed:", error);
+      }
     }
-  } catch (error) {
-    console.error("Auth error:", error);
-  }
-
-  onAuthStateChanged(auth, (user) => {
-    currentUser = user;
-    readyCallbacks.forEach((cb) => cb(user));
   });
 }
 
-// Subscribe to be notified once (and whenever) the auth user changes,
-// mirroring the original useEffect(() => { ... }, [user]) dependency.
 export function onAuthReady(callback) {
   readyCallbacks.push(callback);
-  if (currentUser) callback(currentUser);
+
+  if (authReady) {
+    callback(currentUser);
+  }
+}
+
+export function onAdminStateChanged(callback) {
+  authCallbacks.push(callback);
+
+  if (authReady) {
+    callback(currentUser);
+  }
 }
 
 export function getCurrentUser() {
   return currentUser;
 }
 
-// ===== Admin session =====
 export function isAdminAuthenticated() {
-  return isAuth;
+  return isAdmin;
 }
 
-export function checkAdminPassword(passwordInput) {
-  if (passwordInput === ADMIN_PASSWORD) {
-    isAuth = true;
-    return true;
+export async function loginAdmin(password) {
+  try {
+    const credential = await signInWithEmailAndPassword(
+      auth,
+      ADMIN_EMAIL,
+      password
+    );
+
+    currentUser = credential.user;
+    isAdmin = true;
+
+    return {
+      success: true,
+      user: credential.user,
+    };
+  } catch (error) {
+    console.error(error);
+
+    return {
+      success: false,
+      code: error.code,
+      message: error.message,
+    };
   }
-  return false;
 }
 
-export function logoutAdmin() {
-  isAuth = false;
+export async function logoutAdmin() {
+  try {
+    await signOut(auth);
+    return true;
+  } catch (error) {
+    console.error(error);
+    return false;
+  }
 }

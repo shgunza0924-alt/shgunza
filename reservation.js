@@ -1,7 +1,7 @@
 // js/reservation.js
 // Handles 시설 예약 (facility reservation): new reservation form,
-// live reservations when Firebase is available, and local preview otherwise.
-
+// live reservations, and my-bookings preview.
+//수정확인
 import { notify } from "./notification.js";
 import {
   getDateKey,
@@ -12,6 +12,15 @@ import {
 } from "./utils.js";
 import { showEditBookingModal, hideEditBookingModal } from "./modal.js";
 import { switchResView } from "./ui.js";
+import { db } from "./firebase.js";
+import { 
+  collection, 
+  addDoc, 
+  doc, 
+  updateDoc, 
+  deleteDoc, 
+  onSnapshot 
+} from "https://www.gstatic.com/firebasejs/12.15.0/firebase-firestore.js";
 
 const today = new Date();
 const timeSlots = generateTimeSlots();
@@ -21,20 +30,16 @@ const pmSlots = getPmSlots(timeSlots);
 let reservations = [];
 const changeListeners = [];
 
-let firebaseBundle = null;
-let firestoreApi = null;
-let currentUser = { uid: "local-preview-user" };
-
-// ===== local form state (mirrors resData / resMembers useState) =====
+// local form state
 let resData = { facility: "AR 스포츠", timeSlot: "" };
 let resMembers = [{ name: "", age: "", gender: "남성" }];
 
-// ===== my-bookings state =====
+// my-bookings state
 let searchQuery = { name: "", age: "" };
 let myBookings = [];
 let editingBooking = null;
 
-// ===== DOM refs =====
+// DOM refs
 const facilitySelectEl = document.getElementById("facility-select");
 const amSlotsEl = document.getElementById("am-slots");
 const pmSlotsEl = document.getElementById("pm-slots");
@@ -62,60 +67,6 @@ export function onReservationsChange(callback) {
 
 function notifyChange() {
   changeListeners.forEach((cb) => cb(reservations));
-}
-
-async function loadFirebaseSupport() {
-  if (firebaseBundle || firestoreApi) {
-    return;
-  }
-
-  try {
-    const [firebaseModule, authModule, firestoreModule] = await Promise.all([
-      import("./firebase.js"),
-      import("./auth.js"),
-      import("https://www.gstatic.com/firebasejs/10.12.2/firebase-firestore.js"),
-    ]);
-
-    firebaseBundle = firebaseModule;
-    firestoreApi = firestoreModule;
-
-    const user = authModule.getCurrentUser?.();
-    if (user) {
-      currentUser = user;
-    }
-
-    if (authModule.onAuthReady) {
-      authModule.onAuthReady((nextUser) => {
-        if (nextUser) {
-          currentUser = nextUser;
-        }
-      });
-    }
-  } catch (error) {
-    console.warn("reservation.js running without Firebase:", error);
-  }
-}
-
-function makeReservationId() {
-  return `local-reservation-${Date.now()}-${Math.random().toString(16).slice(2)}`;
-}
-
-function saveLocalReservation(newReservation) {
-  reservations = [{ id: makeReservationId(), ...newReservation }, ...reservations];
-  reservations.sort((a, b) => new Date(b.createdAt) - new Date(a.createdAt));
-  notifyChange();
-}
-
-function updateLocalReservationMembers(id, members) {
-  reservations = reservations.map((reservation) =>
-    reservation.id === id ? { ...reservation, members } : reservation
-  );
-  notifyChange();
-}
-
-function deleteLocalReservation(id) {
-  reservations = reservations.filter((reservation) => reservation.id !== id);
-  notifyChange();
 }
 
 // ===================================================================
@@ -274,38 +225,19 @@ async function handleReservation() {
     createdAt: now.toISOString(),
   };
 
-  if (
-    firebaseBundle &&
-    firestoreApi &&
-    currentUser &&
-    firebaseBundle.db &&
-    firebaseBundle.appId
-  ) {
-    try {
-      const resRef = firestoreApi.collection(
-        firebaseBundle.db,
-        "artifacts",
-        firebaseBundle.appId,
-        "public",
-        "data",
-        "reservations"
-      );
-      await firestoreApi.addDoc(resRef, newRes);
-    } catch (error) {
-      console.error("Reservation error:", error);
-      saveLocalReservation(newRes);
-    }
-  } else {
-    saveLocalReservation(newRes);
+  try {
+    await addDoc(collection(db, "reservations"), newRes);
+    resData = { ...resData, timeSlot: "" };
+    resMembers = [{ name: "", age: "", gender: "남성" }];
+    renderTimeSlots();
+    renderMembersList();
+    renderSubmitButtonState();
+    notify("예약이 완료되었습니다!");
+    switchResView("new");
+  } catch (error) {
+    console.error("Reservation error:", error);
+    notify("예약 처리 중 오류가 발생했습니다.");
   }
-
-  resData = { ...resData, timeSlot: "" };
-  resMembers = [{ name: "", age: "", gender: "남성" }];
-  renderTimeSlots();
-  renderMembersList();
-  renderSubmitButtonState();
-  notify("예약이 완료되었습니다!");
-  switchResView("new");
 }
 
 // ===================================================================
@@ -319,12 +251,15 @@ function findMyBookings() {
     notify("이름과 나이를 입력해주세요.");
     return;
   }
+  
   myBookings = reservations.filter((r) =>
     (r.members || []).some(
       (m) => m.name === searchQuery.name && m.age === searchQuery.age
     )
   );
+  
   renderMyBookings();
+  
   if (myBookings.length === 0) notify("조회된 예약이 없습니다.");
 }
 
@@ -443,112 +378,65 @@ async function handleUpdateBooking() {
     return;
   }
 
-  if (
-    firebaseBundle &&
-    firestoreApi &&
-    currentUser &&
-    firebaseBundle.db &&
-    editingBooking.id &&
-    !editingBooking.id.startsWith("local-")
-  ) {
-    try {
-      const docRef = firestoreApi.doc(
-        firebaseBundle.db,
-        "artifacts",
-        firebaseBundle.appId,
-        "public",
-        "data",
-        "reservations",
-        editingBooking.id
-      );
-      await firestoreApi.updateDoc(docRef, { members: editingBooking.members });
-    } catch (error) {
-      console.error("Update error:", error);
-      updateLocalReservationMembers(editingBooking.id, editingBooking.members);
-    }
-  } else {
-    updateLocalReservationMembers(editingBooking.id, editingBooking.members);
+  try {
+    const docRef = doc(db, "reservations", editingBooking.id);
+    await updateDoc(docRef, { members: editingBooking.members });
+    
+    editingBooking = null;
+    hideEditBookingModal();
+    notify("수정되었습니다.");
+  } catch (error) {
+    console.error("Update error:", error);
+    notify("예약 수정 중 오류가 발생했습니다.");
   }
-
-  myBookings = myBookings.map((r) =>
-    r.id === editingBooking.id ? editingBooking : r
-  );
-  renderMyBookings();
-
-  editingBooking = null;
-  hideEditBookingModal();
-  notify("수정되었습니다.");
 }
 
 async function handleCancelBooking(id) {
   if (!window.confirm("예약을 취소하시겠습니까?")) return;
 
-  if (
-    firebaseBundle &&
-    firestoreApi &&
-    currentUser &&
-    firebaseBundle.db &&
-    id &&
-    !id.startsWith("local-")
-  ) {
-    try {
-      const docRef = firestoreApi.doc(
-        firebaseBundle.db,
-        "artifacts",
-        firebaseBundle.appId,
-        "public",
-        "data",
-        "reservations",
-        id
-      );
-      await firestoreApi.deleteDoc(docRef);
-    } catch (error) {
-      console.error("Cancel error:", error);
-      deleteLocalReservation(id);
-    }
-  } else {
-    deleteLocalReservation(id);
+  try {
+    const docRef = doc(db, "reservations", id);
+    await deleteDoc(docRef);
+    notify("취소되었습니다.");
+  } catch (error) {
+    console.error("Cancel error:", error);
+    notify("예약 취소 중 오류가 발생했습니다.");
   }
-
-  myBookings = myBookings.filter((b) => b.id !== id);
-  renderMyBookings();
-  notify("취소되었습니다.");
 }
 
 // ===================================================================
 // Firestore live subscription
 // ===================================================================
 function subscribeToReservations() {
-  if (!firebaseBundle || !firestoreApi) {
-    return;
-  }
+  const resRef = collection(db, "reservations");
 
-  const resRef = firestoreApi.collection(
-    firebaseBundle.db,
-    "artifacts",
-    firebaseBundle.appId,
-    "public",
-    "data",
-    "reservations"
-  );
-
-  firestoreApi.onSnapshot(
-    resRef,
-    (snapshot) => {
-      const data = snapshot.docs.map((d) => ({ id: d.id, ...d.data() }));
-      data.sort((a, b) => new Date(b.createdAt) - new Date(a.createdAt));
-      reservations = data;
-      renderTimeSlots();
-      notifyChange();
-    },
-    (error) => console.error("Error fetching reservations:", error)
-  );
+  onSnapshot(resRef, (snapshot) => {
+    const data = snapshot.docs.map((d) => ({ id: d.id, ...d.data() }));
+    data.sort((a, b) => new Date(b.createdAt) - new Date(a.createdAt));
+    reservations = data;
+    
+    renderTimeSlots();
+    
+    // Maintain My Bookings UI Sync: If search is active, re-filter the fresh dataset.
+    if (searchQuery.name && searchQuery.age) {
+      myBookings = reservations.filter((r) =>
+        (r.members || []).some(
+          (m) => m.name === searchQuery.name && m.age === searchQuery.age
+        )
+      );
+      renderMyBookings();
+    }
+    
+    notifyChange();
+  }, (error) => {
+    console.error("Error fetching reservations:", error);
+  });
 }
 
 // ===================================================================
 // Init
 // ===================================================================
-export async function initReservation() {
+export function initReservation() {
   wireFacilitySelect();
   renderTimeSlots();
   renderMembersList();
@@ -571,8 +459,8 @@ export async function initReservation() {
     editingBooking = null;
     hideEditBookingModal();
   });
+  
   editBookingSaveBtn.addEventListener("click", handleUpdateBooking);
 
-  await loadFirebaseSupport();
   subscribeToReservations();
 }

@@ -480,6 +480,7 @@ input {
   transition: all 0.15s;
   border-bottom: 4px solid transparent;
   color: var(--slate-300);
+  cursor: pointer;
 }
 
 .nav-tab-btn:hover {
@@ -589,6 +590,7 @@ input {
   border: 4px solid transparent;
   background: var(--slate-50);
   color: var(--slate-400);
+  cursor: pointer;
 }
 
 .toggle-btn.active {
@@ -637,6 +639,7 @@ input {
   background: rgba(255, 255, 255, 0.4);
   opacity: 0.6;
   transition: all 0.15s;
+  cursor: pointer;
 }
 
 .activity-card.active {
@@ -682,6 +685,7 @@ input {
   transition: all 0.15s;
   background: var(--white);
   color: var(--indigo-400);
+  cursor: pointer;
 }
 
 .pill-btn:hover {
@@ -752,6 +756,7 @@ input {
   background: var(--slate-50);
   color: var(--slate-400);
   transition: all 0.15s;
+  cursor: pointer;
 }
 
 .facility-btn:hover {
@@ -829,6 +834,7 @@ input {
   border: 2px solid var(--slate-200);
   background: var(--white);
   transition: all 0.15s;
+  cursor: pointer;
 }
 
 .time-slot-btn:hover {
@@ -872,6 +878,7 @@ input {
   border-radius: 12px;
   font-size: 12px;
   font-weight: 900;
+  cursor: pointer;
 }
 
 .link-btn-back {
