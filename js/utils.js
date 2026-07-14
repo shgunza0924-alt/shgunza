@@ -16,6 +16,45 @@ export function csvEscape(value) {
   return s;
 }
 
+export const AGE_OPTIONS = [
+  { value: "9", label: "초등 (9~13세)" },
+  { value: "14", label: "중등 (14~16세)" },
+  { value: "17", label: "고등 (17~19세)" },
+  { value: "20", label: "청년 (20~24세)" },
+  { value: "25", label: "청년 (25~39세)" },
+  { value: "40", label: "성인 (40세 이상)" },
+  { value: "0", label: "유아 (8세 미만)" },
+];
+
+export function isValidKoreanName(name) {
+  return /^[가-힣]{2,}$/.test(String(name || "").trim());
+}
+
+export function getKoreanNameError(name) {
+  const value = String(name || "").trim();
+  if (!value) return "이름을 입력해주세요.";
+  if (/[A-Za-z]/.test(value)) return "이름은 한글만 입력할 수 있습니다.";
+  if (/[^가-힣]/.test(value)) return "이름에는 완성된 한글 글자만 사용할 수 있습니다.";
+  if (value.length < 2) return "이름은 두 글자 이상 입력해주세요.";
+  return "";
+}
+
+export function createAgeSelect(value = "", className = "") {
+  const select = document.createElement("select");
+  select.className = `age-select ${className}`.trim();
+  select.setAttribute("aria-label", "나이 선택");
+  select.innerHTML = '<option value="" disabled>나이 선택</option>';
+  AGE_OPTIONS.forEach((option) => {
+    const element = document.createElement("option");
+    element.value = option.value;
+    element.textContent = option.label;
+    select.appendChild(element);
+  });
+  select.value = String(value);
+  if (!select.value) select.selectedIndex = 0;
+  return select;
+}
+
 // 예약 시간 슬롯 생성 (점심시간 12:00~13:00 제외)
 const END_HOUR = 19;
 const END_MIN = 0; // 18:40-19:00이 마지막 타임이 되도록 19:00으로 종료 시간 수정
@@ -56,7 +95,7 @@ export function getPmSlots(timeSlots) {
 export function isResFormValid(resData, resMembers) {
   const hasTime = !!resData.timeSlot;
   const allMembersFilled = resMembers.every(
-    (m) => m.name.trim() !== "" && String(m.age).trim() !== ""
+    (m) => isValidKoreanName(m.name) && String(m.age).trim() !== ""
   );
   return hasTime && allMembersFilled;
 }

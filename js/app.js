@@ -13,14 +13,10 @@ document.addEventListener("DOMContentLoaded", async () => {
   const [
     visitModule,
     reservationModule,
-    adminModule,
-    csvModule,
     authModule,
   ] = await Promise.allSettled([
     import("./visit.js"),
     import("./reservation.js"),
-    import("./admin.js"),
-    import("./csv.js"),
     import("./auth.js"),
   ]);
 
@@ -34,18 +30,6 @@ document.addEventListener("DOMContentLoaded", async () => {
     reservationModule.value.initReservation();
   } else {
     logModuleError("reservation", reservationModule.reason);
-  }
-
-  if (adminModule.status === "fulfilled") {
-    adminModule.value.initAdmin();
-  } else {
-    logModuleError("admin", adminModule.reason);
-  }
-
-  if (csvModule.status === "fulfilled") {
-    csvModule.value.initCSV();
-  } else {
-    logModuleError("csv", csvModule.reason);
   }
 
   if (authModule.status === "fulfilled") {

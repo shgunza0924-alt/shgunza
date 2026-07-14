@@ -17,6 +17,7 @@ function renderStats() {
 
   statVisitsEl.textContent = visits.length;
   statReservationsEl.textContent = reservations.length;
+  
   statYouthcutEl.textContent = visits.filter((v) =>
     v.activities?.includes("유스네컷")
   ).length;

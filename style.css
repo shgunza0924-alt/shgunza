@@ -160,20 +160,9 @@ input {
   box-shadow: 0 25px 50px -12px rgba(0, 0, 0, 0.4);
 }
 
-.modal-box-sm {
-  max-width: 24rem;
-}
-
 .modal-box-lg {
   max-width: 42rem;
   padding: 32px;
-}
-
-.modal-title-center {
-  font-size: 24px;
-  font-weight: 900;
-  margin: 0 0 24px 0;
-  text-align: center;
 }
 
 .modal-title {
@@ -187,27 +176,6 @@ input {
   justify-content: space-between;
   align-items: center;
   margin-bottom: 32px;
-}
-
-.password-input {
-  width: 100%;
-  background: var(--slate-100);
-  padding: 20px;
-  border-radius: 16px;
-  text-align: center;
-  font-size: 24px;
-  margin-bottom: 24px;
-  outline: none;
-  border: 2px solid transparent;
-}
-
-.password-input:focus {
-  border-color: var(--blue-500);
-}
-
-.modal-actions {
-  display: flex;
-  gap: 12px;
 }
 
 .edit-booking-members {
@@ -253,6 +221,14 @@ input {
 
 .edit-member-row .edit-member-fields input.field-age {
   width: 96px;
+}
+.edit-member-row .edit-member-fields .age-select.field-age {
+  width: 190px;
+  min-height: 44px;
+  padding: 8px 34px 8px 12px;
+  border-radius: 12px;
+  background-position: right 8px center;
+  font-size: 13px;
 }
 
 .edit-member-gender {
@@ -323,32 +299,9 @@ input {
   cursor: not-allowed;
 }
 
-.btn-emerald {
-  background: var(--emerald-600);
-  color: var(--white);
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  gap: 8px;
-  padding: 16px 32px;
-  border-radius: 16px;
-  box-shadow: 0 10px 15px -3px rgba(0,0,0,0.1);
-}
-
-.btn-emerald:hover {
-  background: var(--emerald-700);
-}
-
 .btn-lg { padding: 20px; font-size: 20px; border-radius: 16px; }
 .btn-xl { padding: 28px; font-size: 22px; border-radius: 2rem; box-shadow: 0 20px 25px -5px rgba(0,0,0,0.1); }
 .btn-xxl { padding: 32px; font-size: 30px; border-radius: 2rem; box-shadow: 0 25px 50px -12px rgba(59,130,246,0.3); }
-
-.btn-text-cancel {
-  flex: 1;
-  padding: 16px;
-  font-weight: 700;
-  color: var(--slate-400);
-}
 
 /* ==========================================================================
    ICON BUTTONS
@@ -574,6 +527,29 @@ input {
 .input-lg {
   font-size: 20px;
 }
+
+/* Shared age selector used by visitor registration and facility reservation. */
+.age-select {
+  width: 100%;
+  min-height: 64px;
+  padding: 0 52px 0 20px;
+  border: 1.5px solid var(--blue-400);
+  border-radius: 24px;
+  background: var(--white) url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='24' height='24' viewBox='0 0 24 24' fill='none' stroke='%230f172a' stroke-width='2' stroke-linecap='round' stroke-linejoin='round'%3E%3Cpolyline points='6 9 12 15 18 9'/%3E%3C/svg%3E") no-repeat right 18px center;
+  appearance: none;
+  color: var(--slate-900);
+  font: inherit;
+  font-size: 20px;
+  font-weight: 800;
+  outline: none;
+}
+.age-select:focus { border-color: var(--blue-500); box-shadow: 0 0 0 3px var(--blue-100); }
+.age-select:invalid, .age-select:has(option:checked[value=""]) { color: var(--slate-400); }
+
+.checkin-members-header { display: flex; align-items: center; justify-content: space-between; margin-bottom: 16px; }
+.checkin-visitors-list { display: flex; flex-direction: column; gap: 16px; margin-bottom: 24px; }
+.checkin-visitor-row { display: grid; grid-template-columns: 1fr 1fr 1fr auto; gap: 16px; align-items: end; padding: 16px; border: 2px solid var(--slate-100); border-radius: 20px; background: var(--slate-50); }
+.checkin-visitor-row .member-remove-btn { align-self: end; margin-bottom: 0; }
 
 .toggle-group {
   display: flex;
@@ -921,7 +897,7 @@ input {
 
 @media (min-width: 768px) {
   .member-row .member-field.field-name { flex: 1; }
-  .member-row .member-field.field-age { width: 128px; }
+  .member-row .member-field.field-age { width: 200px; }
   .member-row .member-field.field-gender { width: 256px; }
 }
 
@@ -947,6 +923,7 @@ input {
 .member-field input:focus {
   border-color: var(--blue-500);
 }
+.member-field .age-select { min-height: 48px; padding-left: 12px; padding-right: 38px; border-radius: 12px; background-position: right 10px center; font-size: 14px; }
 
 .member-gender-group {
   display: flex;
@@ -1096,170 +1073,6 @@ input {
 }
 
 /* ==========================================================================
-   ADMIN TAB
-   ========================================================================== */
-.admin-header-row {
-  display: flex;
-  flex-direction: column;
-  justify-content: space-between;
-  align-items: flex-start;
-  gap: 16px;
-  margin-bottom: 40px;
-}
-
-@media (min-width: 768px) {
-  .admin-header-row { flex-direction: row; align-items: center; }
-}
-
-.admin-title {
-  font-size: 36px;
-  font-weight: 900;
-  color: var(--slate-900);
-  margin: 0;
-}
-
-.admin-header-actions {
-  display: flex;
-  gap: 12px;
-  width: 100%;
-}
-
-@media (min-width: 768px) {
-  .admin-header-actions { width: auto; }
-}
-
-.admin-header-actions .btn-emerald {
-  flex: 1;
-}
-
-@media (min-width: 768px) {
-  .admin-header-actions .btn-emerald { flex: none; }
-}
-
-.stats-grid {
-  display: grid;
-  grid-template-columns: repeat(2, 1fr);
-  gap: 24px;
-  margin-bottom: 40px;
-}
-
-@media (min-width: 1024px) {
-  .stats-grid { grid-template-columns: repeat(4, 1fr); }
-}
-
-.stat-card {
-  background: var(--white);
-  padding: 32px;
-  border-radius: 2.5rem;
-  box-shadow: 0 1px 2px rgba(0,0,0,0.05);
-  border: 1px solid var(--slate-100);
-  position: relative;
-  overflow: hidden;
-}
-
-.stat-icon {
-  position: absolute;
-  top: 16px;
-  right: 16px;
-  color: var(--slate-200);
-}
-
-.stat-label {
-  color: var(--slate-400);
-  font-weight: 900;
-  font-size: 10px;
-  text-transform: uppercase;
-  letter-spacing: 0.05em;
-  margin: 0 0 4px 0;
-}
-
-.stat-value {
-  font-size: 48px;
-  font-weight: 900;
-  margin: 0;
-}
-
-.stat-value-blue { color: var(--blue-600); }
-.stat-value-indigo { color: var(--indigo-600); }
-.stat-value-pink { color: var(--pink-500); }
-.stat-value-emerald { color: var(--emerald-500); }
-
-.table-title {
-  font-size: 20px;
-  font-weight: 900;
-  margin: 0 0 24px 0;
-}
-
-.table-scroll {
-  overflow-x: auto;
-  font-size: 14px;
-}
-
-.data-table {
-  width: 100%;
-  text-align: left;
-  border-collapse: collapse;
-}
-
-.data-table thead tr {
-  border-bottom: 1px solid var(--slate-50);
-}
-
-.data-table th {
-  padding-bottom: 16px;
-  font-weight: 900;
-  color: var(--slate-400);
-  font-size: 12px;
-  text-transform: uppercase;
-}
-
-.data-table td {
-  padding: 16px 0;
-  border-bottom: 1px solid var(--slate-50);
-}
-
-.data-table tr:last-child td {
-  border-bottom: none;
-}
-
-.table-empty {
-  padding: 48px 0;
-  text-align: center;
-  color: var(--slate-300);
-  font-weight: 700;
-}
-
-.td-time {
-  font-size: 12px;
-  font-weight: 700;
-  color: var(--slate-400);
-}
-
-.td-name {
-  font-weight: 900;
-}
-
-.td-age {
-  font-weight: 700;
-  color: var(--slate-600);
-}
-
-.activity-tags {
-  display: flex;
-  flex-wrap: wrap;
-  gap: 4px;
-}
-
-.activity-tag {
-  padding: 4px 8px;
-  background: var(--blue-50);
-  color: var(--blue-600);
-  font-size: 10px;
-  font-weight: 900;
-  border-radius: 8px;
-}
-
-/* ==========================================================================
    FOOTER
    ========================================================================== */
 .footer {
@@ -1280,6 +1093,7 @@ input {
   .checkin-grid {
     grid-template-columns: 1fr;
   }
+  .checkin-visitor-row { grid-template-columns: 1fr; }
   .facility-select {
     grid-template-columns: 1fr;
   }

@@ -9,6 +9,9 @@ import {
   getAmSlots,
   getPmSlots,
   isResFormValid,
+  createAgeSelect,
+  getKoreanNameError,
+  isValidKoreanName,
 } from "./utils.js";
 import { showEditBookingModal, hideEditBookingModal } from "./modal.js";
 import { switchResView } from "./ui.js";
@@ -145,16 +148,17 @@ function renderMembersList() {
       resMembers[i].name = e.target.value;
       renderSubmitButtonState();
     });
+    nameInput.addEventListener("blur", () => {
+      const error = getKoreanNameError(resMembers[i].name);
+      if (error) notify(error);
+    });
     nameField.appendChild(nameInput);
 
     const ageField = document.createElement("div");
     ageField.className = "member-field field-age";
     ageField.innerHTML = `<label class="member-field-label">나이</label>`;
-    const ageInput = document.createElement("input");
-    ageInput.type = "number";
-    ageInput.placeholder = "나이";
-    ageInput.value = member.age;
-    ageInput.addEventListener("input", (e) => {
+    const ageInput = createAgeSelect(member.age);
+    ageInput.addEventListener("change", (e) => {
       resMembers[i].age = e.target.value;
       renderSubmitButtonState();
     });
@@ -214,7 +218,11 @@ function renderSubmitButtonState() {
 // New reservation submit
 // ===================================================================
 async function handleReservation() {
-  if (!isResFormValid(resData, resMembers)) return;
+  if (!isResFormValid(resData, resMembers)) {
+    const invalid = resMembers.find((member) => !isValidKoreanName(member.name));
+    notify(invalid ? getKoreanNameError(invalid.name) : "시간과 이용자 정보를 모두 입력해주세요.");
+    return;
+  }
 
   const now = new Date();
   const dateKey = getDateKey(now);
@@ -247,7 +255,11 @@ function findMyBookings() {
   searchQuery.name = searchNameInput.value;
   searchQuery.age = searchAgeInput.value;
 
-  if (!searchQuery.name || !searchQuery.age) {
+  if (!isValidKoreanName(searchQuery.name)) {
+    notify(getKoreanNameError(searchQuery.name));
+    return;
+  }
+  if (!searchQuery.age) {
     notify("이름과 나이를 입력해주세요.");
     return;
   }
@@ -336,13 +348,13 @@ function renderEditBookingModal() {
     nameInput.addEventListener("input", (e) => {
       editingBooking.members[i].name = e.target.value;
     });
+    nameInput.addEventListener("blur", () => {
+      const error = getKoreanNameError(editingBooking.members[i].name);
+      if (error) notify(error);
+    });
 
-    const ageInput = document.createElement("input");
-    ageInput.className = "field-age";
-    ageInput.type = "number";
-    ageInput.value = m.age;
-    ageInput.placeholder = "나이";
-    ageInput.addEventListener("input", (e) => {
+    const ageInput = createAgeSelect(m.age, "field-age");
+    ageInput.addEventListener("change", (e) => {
       editingBooking.members[i].age = e.target.value;
     });
 
@@ -371,10 +383,11 @@ function renderEditBookingModal() {
 async function handleUpdateBooking() {
   if (
     !editingBooking.members.every(
-      (m) => m.name.trim() !== "" && String(m.age).trim() !== ""
+      (m) => isValidKoreanName(m.name) && String(m.age).trim() !== ""
     )
   ) {
-    notify("모든 이용자의 정보를 입력해주세요.");
+    const invalid = editingBooking.members.find((m) => !isValidKoreanName(m.name));
+    notify(invalid ? getKoreanNameError(invalid.name) : "모든 이용자의 정보를 입력해주세요.");
     return;
   }
 
@@ -443,7 +456,7 @@ export function initReservation() {
   renderSubmitButtonState();
 
   addMemberBtn.addEventListener("click", () => {
-    if (resMembers.length < 4) {
+    if (resMembers.length < 10) {
       resMembers.push({ name: "", age: "", gender: "남성" });
       renderMembersList();
       renderSubmitButtonState();
