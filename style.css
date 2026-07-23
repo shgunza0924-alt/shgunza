@@ -550,6 +550,20 @@ input {
 .checkin-visitors-list { display: flex; flex-direction: column; gap: 16px; margin-bottom: 24px; }
 .checkin-visitor-row { display: grid; grid-template-columns: 1fr 1fr 1fr auto; gap: 16px; align-items: end; padding: 16px; border: 2px solid var(--slate-100); border-radius: 20px; background: var(--slate-50); }
 .checkin-visitor-row .member-remove-btn { align-self: end; margin-bottom: 0; }
+.checkin-visitor-row .checkin-remove-btn {
+  width: 44px;
+  min-width: 44px;
+  height: 44px;
+  padding: 0;
+  border: 2px solid var(--red-100);
+  border-radius: 50%;
+  background: var(--red-50);
+  color: var(--red-600);
+  font-size: 30px;
+  font-weight: 700;
+  line-height: 1;
+}
+.checkin-visitor-row .checkin-remove-btn:hover { background: var(--red-100); }
 
 .toggle-group {
   display: flex;
@@ -980,6 +994,13 @@ input {
   gap: 24px;
 }
 
+.my-bookings-grid > .empty-state {
+  grid-column: 1 / -1;
+  background: var(--white);
+  border: 1px solid var(--slate-100);
+  border-radius: 1.5rem;
+}
+
 @media (min-width: 768px) {
   .my-bookings-grid { grid-template-columns: repeat(2, 1fr); }
 }
@@ -1094,6 +1115,7 @@ input {
     grid-template-columns: 1fr;
   }
   .checkin-visitor-row { grid-template-columns: 1fr; }
+  .checkin-visitor-row .checkin-remove-btn { align-self: flex-end; }
   .facility-select {
     grid-template-columns: 1fr;
   }
@@ -1114,4 +1136,18 @@ input {
   .modal-box-lg {
     padding: 24px;
   }
+  .header { padding: 20px 16px; }
+  .header-inner { justify-content: center; }
+  .header-right { width: 100%; justify-content: space-between; gap: 12px; }
+  .header img { height: 88px !important; max-width: 100%; object-fit: contain; }
+  .main-content { padding: 16px; }
+  .res-view-switch { gap: 8px; }
+  .pill-btn { flex: 1; padding: 12px 8px; font-size: 14px; }
+  .time-slots-box { padding: 20px 12px; gap: 24px; }
+  .time-slots-grid { gap: 8px; }
+  .time-slot-btn { padding: 12px 2px; font-size: 12px; }
+  .booking-card { padding: 24px; border-radius: 2rem; }
+  .booking-card-top { gap: 12px; flex-wrap: wrap; }
+  .edit-member-row .edit-member-fields { flex-direction: column; }
+  .edit-member-row .edit-member-fields .age-select.field-age { width: 100%; }
 }

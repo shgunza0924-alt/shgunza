@@ -4,7 +4,8 @@
  * Project data is supplied exclusively through AdminTool.init().
  */
 (function () {
-  var state = { config: null, app: null, auth: null, db: null, api: null, visits: [], reservations: [], ready: false, authReady: null, isAdmin: false, view: "visits", filter: "all" };
+  var defaultActivities = [{ id: "rest", name: "휴식", emoji: "☕" }, { id: "boardgame", name: "보드게임", emoji: "🎲" }, { id: "youthcut", name: "유스네컷", emoji: "📸" }, { id: "reading", name: "독서", emoji: "📚" }, { id: "beads", name: "컬러비즈", emoji: "🟣" }];
+  var state = { config: null, app: null, auth: null, db: null, api: null, visits: [], reservations: [], activities: defaultActivities, ready: false, authReady: null, isAdmin: false, view: "visits", filter: "all", rangeStart: "", rangeEnd: "" };
 
   function normalizedEmail(value) {
     return String(value || "").trim().toLowerCase();
@@ -51,7 +52,7 @@
       '</form></div>' +
       '<section id="at-fs-dashboard" class="at-fs-dashboard at-ref-dashboard" hidden>' +
         '<header class="at-ref-header"><div class="at-ref-brand">' + (logoUrl ? '<img src="' + esc(logoUrl) + '" alt="' + esc(state.config.branding.title || "") + '">' : '<strong>' + esc(state.config.branding.title || "Admin Tool") + '</strong>') + '</div><div class="at-ref-actions"><span id="at-ref-date"></span><button id="at-fs-export" title="통합 CSV 다운로드">⇩</button><button id="at-fs-logout" title="나가기">↪</button></div></header>' +
-        '<nav class="at-ref-tabs"><button data-at-view="visits" class="is-active">방문 등록 내역</button><button data-at-view="reservations">AR 예약 현황</button></nav>' +
+        '<nav class="at-ref-tabs at-ref-tabs-three"><button data-at-view="visits" class="is-active">방문 등록 내역</button><button data-at-view="reservations">시설 예약 현황</button><button data-at-view="activities">활동 카드 관리</button></nav>' +
         '<main id="at-ref-content" class="at-ref-content"></main>' +
       '</section><div id="at-fs-toast" class="at-fs-toast" hidden></div>';
 
@@ -109,23 +110,66 @@
   async function logout() { await state.api.signOut(state.auth); state.isAdmin = false; closeDashboard(); }
 
   function groups() { return state.config.ageGroups || [{ label: "초등(9~13)", min: 9, max: 13 }, { label: "중등(14~16)", min: 14, max: 16 }, { label: "고등(17~19)", min: 17, max: 19 }, { label: "청년(20~24)", min: 20, max: 24 }, { label: "청년(25~39)", min: 25, max: 39 }, { label: "유아(~8)", min: 0, max: 8 }, { label: "성인(40~)", min: 40, max: Infinity }]; }
-  function inRange(item) { if (state.filter === "all") return true; var date = new Date(item.createdAt || item.dateKey); if (state.filter === "month") { var now = new Date(); return date.getFullYear() === now.getFullYear() && date.getMonth() === now.getMonth(); } return true; }
+  function localDateKey(date) { return date.getFullYear() + "-" + String(date.getMonth() + 1).padStart(2, "0") + "-" + String(date.getDate()).padStart(2, "0"); }
+  function recordDateKey(item) { if (item.dateKey) return String(item.dateKey); var value = item.createdAt, date = value && typeof value.toDate === "function" ? value.toDate() : new Date(value); return isNaN(date) ? "" : localDateKey(date); }
+  function inRange(item) {
+    if (state.filter === "all") return true;
+    var key = recordDateKey(item);
+    if (!key) return false;
+    if (state.filter === "month") return key.slice(0, 7) === localDateKey(new Date()).slice(0, 7);
+    return state.filter !== "custom" || (key >= state.rangeStart && key <= state.rangeEnd);
+  }
   function purposeList(records) { var configured = state.config.visitPurposes || []; return configured.length ? configured : Array.from(new Set(records.reduce(function (all, row) { return all.concat(row.activities || []); }, []))); }
+  function facilityList(records) {
+    var configured = state.config.facilities || [];
+    var recorded = records.map(function (row) { return row.facility; }).filter(Boolean);
+    return Array.from(new Set(configured.concat(recorded)));
+  }
   function statsTable(records, purposes, memberMode, ar) {
     var gs = groups(), totals = {};
     purposes.forEach(function (p) { totals[p] = gs.map(function () { return [0, 0]; }); });
-    records.filter(inRange).forEach(function (row) { var people = memberMode ? (row.members || []) : [row]; var ps = memberMode ? ["AR 이용"] : (row.activities || []); people.forEach(function (person) { var age = Number(person.age), gi = gs.findIndex(function (g) { return age >= g.min && age <= g.max; }); ps.forEach(function (p) { if (gi >= 0 && totals[p]) totals[p][gi][person.gender === "여성" ? 1 : 0]++; }); }); });
+    records.filter(inRange).forEach(function (row) { var people = memberMode ? (row.members || []) : [row]; var ps = memberMode ? [row.facility || "시설 미지정"] : (row.activities || []); people.forEach(function (person) { var age = Number(person.age), gi = gs.findIndex(function (g) { return age >= g.min && age <= g.max; }); ps.forEach(function (p) { if (gi >= 0 && totals[p]) totals[p][gi][person.gender === "여성" ? 1 : 0]++; }); }); });
     var colTotal = function (cells, predicate) { return cells.reduce(function (sum, pair, i) { return sum + (predicate ? (predicate(gs[i]) ? pair[0] + pair[1] : 0) : pair[0] + pair[1]); }, 0); };
     var head = '<thead><tr><th rowspan="2">' + (memberMode ? "이용 목적" : "이용 목적") + '</th>' + gs.map(function (g) { return '<th colspan="2">' + esc(g.label) + '</th>'; }).join("") + '<th rowspan="2" class="' + (ar ? 'at-ar-sum-col' : 'at-sum-col') + '">청소년 합계</th><th rowspan="2" class="' + (ar ? 'at-ar-sum-col' : 'at-sum-col') + '">청년 합계</th><th rowspan="2" class="at-total-sum-col">전체 합계</th></tr><tr class="at-gender-header">' + gs.map(function () { return '<th class="at-male">남</th><th class="at-female">여</th>'; }).join("") + '</tr></thead>';
     var body = purposes.map(function (p) { var cells = totals[p]; return '<tr class="at-category-row"><td>' + esc(p) + '</td>' + cells.map(function (pair) { return '<td>' + pair[0] + '</td><td>' + pair[1] + '</td>'; }).join("") + '<td class="' + (ar ? 'at-ar-sum-col' : 'at-sum-col') + '">' + colTotal(cells, function (g) { return g.max <= 19; }) + '</td><td class="' + (ar ? 'at-ar-sum-col' : 'at-sum-col') + '">' + colTotal(cells, function (g) { return g.min >= 20 && g.max <= 39; }) + '</td><td class="at-total-sum-col">' + colTotal(cells) + '</td></tr>'; }).join("");
     return '<div class="at-stats-container ' + (ar ? 'at-ar-border' : '') + '"><div class="at-stats-wrapper"><table class="at-stats-table">' + head + '<tbody>' + body + '</tbody></table></div></div>';
   }
+  function renderActivitySettings() {
+    var content = document.getElementById("at-ref-content");
+    if (!content) return;
+    var rows = state.activities.map(function (activity, index) {
+      return '<div class="at-activity-setting-row"><strong>' + (index + 1) + '</strong><label>활동명<input data-activity-name="' + esc(activity.id) + '" value="' + esc(activity.name) + '" maxlength="20"></label><label>이모지<input data-activity-emoji="' + esc(activity.id) + '" value="' + esc(activity.emoji) + '" maxlength="8"></label></div>';
+    }).join("");
+    content.innerHTML = '<section class="at-activity-settings"><h2>방문 등록 활동 카드 관리</h2><p>사진 서비스 가입 없이 이모지로 카드를 꾸밀 수 있습니다. 활동명과 이모지는 방문 등록 화면에 바로 반영됩니다.</p><div class="at-activity-setting-list">' + rows + '</div><button id="at-save-activities" class="at-activity-save">활동 카드 저장</button></section>';
+    document.getElementById("at-save-activities").onclick = saveActivitySettings;
+  }
+  async function saveActivitySettings() {
+    var items = state.activities.map(function (activity) {
+      var name = document.querySelector('[data-activity-name="' + activity.id + '"]').value.trim();
+      var emoji = document.querySelector('[data-activity-emoji="' + activity.id + '"]').value.trim();
+      return { id: activity.id, name: name, emoji: emoji };
+    });
+    if (items.some(function (item) { return !item.name; })) { notify("활동명을 모두 입력해주세요.", "error"); return; }
+    if (new Set(items.map(function (item) { return item.name; })).size !== items.length) { notify("활동명은 서로 다르게 입력해주세요.", "error"); return; }
+    try {
+      await state.api.setDoc(state.api.doc(state.db, state.config.collections.settings, "activities"), { items: items, updatedAt: new Date().toISOString() });
+      state.activities = items;
+      notify("활동 카드가 저장되었습니다.", "success");
+    } catch (error) {
+      console.error("[AdminTool] activity settings save failed", error);
+      notify("활동 카드를 저장하지 못했습니다.", "error");
+    }
+  }
   function render() {
     var content = document.getElementById("at-ref-content"); if (!content) return;
-    var isAr = state.view === "reservations", records = (isAr ? state.reservations : state.visits).filter(inRange), purposes = isAr ? ["AR 이용"] : purposeList(state.visits), title = isAr ? "AR 이용 통계 (예약 기반)" : "이용 목적 및 연령별 통계";
+    if (state.view === "activities") { renderActivitySettings(); return; }
+    var isAr = state.view === "reservations", records = (isAr ? state.reservations : state.visits).filter(inRange), purposes = isAr ? facilityList(state.reservations) : purposeList(state.visits), title = isAr ? "시설 이용 통계 (예약 기반)" : "이용 목적 및 연령별 통계";
     document.getElementById("at-ref-date").textContent = new Date().toLocaleDateString("ko-KR").replace(/\. /g, ".").replace(/\.$/, "");
-    content.innerHTML = '<section class="at-ref-filter"><strong>⌕&nbsp; 통계 기간 필터</strong><div><button data-filter="all" class="' + (state.filter === 'all' ? 'is-current' : '') + '">전체</button><button data-filter="month" class="' + (state.filter === 'month' ? 'is-current' : '') + '">월별 ' + new Date().getFullYear() + '년 ' + (new Date().getMonth() + 1) + '월</button><button data-filter="custom">지정 기간</button><button data-filter="all">⌕ 조회</button></div></section><section class="at-ref-section"><h2>' + (isAr ? '✓' : '▥') + ' ' + title + '</h2>' + statsTable(isAr ? state.reservations : state.visits, purposes, isAr, isAr) + (isAr ? '' : '<h2 class="at-ref-study">▣ 스터디룸 이용 통계</h2>' + statsTable(state.visits, [state.config.studyPurpose || '스터디룸'], false, false)) + '<div class="at-log-header"><h2 class="at-log-title">상세 ' + (isAr ? 'AR 예약' : '방문') + ' 내역</h2><div class="at-log-actions"><button class="at-excel-btn ' + (isAr ? 'at-indigo-btn' : '') + '" id="at-ref-export">⇩ 엑셀 다운로드</button><span class="at-count-badge ' + (isAr ? 'at-indigo-badge' : 'at-blue-badge') + '">' + records.length + '건</span></div></div><div class="at-log-table-wrap"><table class="at-log-table"><thead class="at-log-thead">' + (isAr ? '<tr><th>예약날짜</th><th>예약시간</th><th>대표자</th><th>총 인원</th><th>이용자 명단</th><th>관리</th></tr>' : '<tr><th>날짜</th><th>시간</th><th>이름</th><th>성별</th><th>나이</th><th>목적</th><th>관리</th></tr>') + '</thead><tbody id="at-fs-body"></tbody></table></div></section>';
-    content.querySelectorAll('[data-filter]').forEach(function (button) { button.onclick = function () { state.filter = button.dataset.filter; render(); }; });
+    var customControls = state.filter === "custom" ? '<div class="at-ref-date-range"><input id="at-ref-start-date" type="date" aria-label="시작일" value="' + esc(state.rangeStart) + '"><span>~</span><input id="at-ref-end-date" type="date" aria-label="종료일" value="' + esc(state.rangeEnd) + '"><button id="at-ref-apply-range">조회</button></div>' : '';
+    content.innerHTML = '<section class="at-ref-filter"><strong>⌕&nbsp; 통계 기간 필터</strong><div><button data-filter="all" class="' + (state.filter === 'all' ? 'is-current' : '') + '">전체</button><button data-filter="month" class="' + (state.filter === 'month' ? 'is-current' : '') + '">월별 ' + new Date().getFullYear() + '년 ' + (new Date().getMonth() + 1) + '월</button><button data-filter="custom" class="' + (state.filter === 'custom' ? 'is-current' : '') + '">지정 기간</button>' + customControls + '</div></section><section class="at-ref-section"><h2>' + (isAr ? '✓' : '▥') + ' ' + title + '</h2>' + statsTable(isAr ? state.reservations : state.visits, purposes, isAr, isAr) + (isAr ? '' : '<h2 class="at-ref-study">▣ 스터디룸 이용 통계</h2>' + statsTable(state.visits, [state.config.studyPurpose || '스터디룸'], false, false)) + '<div class="at-log-header"><h2 class="at-log-title">상세 ' + (isAr ? '시설 예약' : '방문') + ' 내역</h2><div class="at-log-actions"><button class="at-excel-btn ' + (isAr ? 'at-indigo-btn' : '') + '" id="at-ref-export">⇩ 엑셀 다운로드</button><span class="at-count-badge ' + (isAr ? 'at-indigo-badge' : 'at-blue-badge') + '">' + records.length + '건</span></div></div><div class="at-log-table-wrap"><table class="at-log-table"><thead class="at-log-thead">' + (isAr ? '<tr><th>예약날짜</th><th>예약시간</th><th>시설</th><th>대표자</th><th>총 인원</th><th>이용자 명단</th><th>관리</th></tr>' : '<tr><th>날짜</th><th>시간</th><th>이름</th><th>성별</th><th>나이</th><th>목적</th><th>관리</th></tr>') + '</thead><tbody id="at-fs-body"></tbody></table></div></section>';
+    content.querySelectorAll('[data-filter]').forEach(function (button) { button.onclick = function () { state.filter = button.dataset.filter; if (state.filter === "custom" && !state.rangeStart) { state.rangeStart = localDateKey(new Date()); state.rangeEnd = state.rangeStart; } render(); }; });
+    var applyRange = document.getElementById("at-ref-apply-range");
+    if (applyRange) applyRange.onclick = function () { var start = document.getElementById("at-ref-start-date").value, end = document.getElementById("at-ref-end-date").value; if (!start || !end || start > end) { notify("시작일과 종료일을 올바르게 선택해주세요.", "error"); return; } state.rangeStart = start; state.rangeEnd = end; render(); };
     document.getElementById("at-ref-export").onclick = function () { exportCsv(isAr ? "reservations" : "visits"); }; renderTable(state.view);
   }
 
@@ -137,7 +181,7 @@
     body.innerHTML = rows.map(function (row) {
       if (view === "visits") return "<tr class=\"at-log-row\"><td class=\"at-date-cell\">" + esc(dateText(row.createdAt).split(" ")[0]) + "</td><td class=\"at-time-cell\">" + esc(row.timestamp || dateText(row.createdAt)) + "</td><td class=\"at-name-cell\">" + esc(row.name) + "</td><td>" + esc(row.gender) + "</td><td>" + esc(row.age) + "</td><td><div class=\"at-purpose-wrap\">" + (row.activities || []).map(function (item) { return '<span class="at-purpose-badge">' + esc(item) + '</span>'; }).join("") + "</div></td><td><button class=\"at-delete-btn at-fs-delete\" data-collection=\"visits\" data-id=\"" + esc(row.id) + "\">삭제</button></td></tr>";
       var members = row.members || [];
-      return "<tr class=\"at-log-row at-ar-row\"><td class=\"at-date-cell\">" + esc(row.dateKey || dateText(row.createdAt)) + "</td><td class=\"at-time-cell at-indigo-text\">" + esc(row.timeSlot) + "</td><td class=\"at-name-cell\">" + esc(members[0] && members[0].name) + "</td><td>" + members.length + "명</td><td class=\"at-detail-cell\">" + members.map(function (member) { return '<span class="at-user-chip">' + esc(member.name) + '<span class="at-user-meta">(' + esc(member.gender) + ', ' + esc(member.age) + ')</span></span>'; }).join("") + "</td><td><button class=\"at-delete-btn at-fs-delete\" data-collection=\"reservations\" data-id=\"" + esc(row.id) + "\">삭제</button></td></tr>";
+      return "<tr class=\"at-log-row at-ar-row\"><td class=\"at-date-cell\">" + esc(row.dateKey || dateText(row.createdAt)) + "</td><td class=\"at-time-cell at-indigo-text\">" + esc(row.timeSlot) + "</td><td class=\"at-name-cell\">" + esc(row.facility || "시설 미지정") + "</td><td class=\"at-name-cell\">" + esc(members[0] && members[0].name) + "</td><td>" + members.length + "명</td><td class=\"at-detail-cell\">" + members.map(function (member) { return '<span class="at-user-chip">' + esc(member.name) + '<span class="at-user-meta">(' + esc(member.gender) + ', ' + esc(member.age) + ')</span></span>'; }).join("") + "</td><td><button class=\"at-delete-btn at-fs-delete\" data-collection=\"reservations\" data-id=\"" + esc(row.id) + "\">삭제</button></td></tr>";
     }).join("");
     body.querySelectorAll(".at-fs-delete").forEach(function (button) { button.onclick = removeRecord; });
   }
@@ -181,18 +225,21 @@
     });
     firestoreApi.onSnapshot(firestoreApi.collection(state.db, state.config.collections.visits), function (snapshot) { state.visits = snapshot.docs.map(function (doc) { return Object.assign({ id: doc.id }, doc.data()); }).sort(function (a, b) { return dateValue(b.createdAt) - dateValue(a.createdAt); }); render(); }, function (error) { console.error("[AdminTool] visits subscription failed", error); });
     firestoreApi.onSnapshot(firestoreApi.collection(state.db, state.config.collections.reservations), function (snapshot) { state.reservations = snapshot.docs.map(function (doc) { return Object.assign({ id: doc.id }, doc.data()); }).sort(function (a, b) { return dateValue(b.createdAt) - dateValue(a.createdAt); }); render(); }, function (error) { console.error("[AdminTool] reservations subscription failed", error); });
+    firestoreApi.onSnapshot(firestoreApi.doc(state.db, state.config.collections.settings, "activities"), function (snapshot) { if (snapshot.exists() && Array.isArray(snapshot.data().items) && snapshot.data().items.length === defaultActivities.length) state.activities = snapshot.data().items; render(); }, function (error) { console.warn("[AdminTool] activity settings subscription failed", error); });
   }
 
   window.AdminTool = { init: function (config) {
     if (state.ready) throw new Error("AdminTool.init() may only be called once.");
     if (!config || !config.firebase || !config.auth || !config.auth.adminEmail) throw new Error("AdminTool requires firebase configuration and auth.adminEmail.");
     state.ready = true;
-    state.config = Object.assign({ branding: {}, collections: {}, labels: {}, entryButtonId: "admin-toggle-btn" }, config);
+    state.config = Object.assign({ branding: {}, collections: {}, labels: {}, facilities: [], entryButtonId: "admin-toggle-btn" }, config);
     state.config.branding = Object.assign({}, state.config.branding || {});
     state.config.collections = Object.assign({}, state.config.collections || {});
     state.config.labels = Object.assign({}, state.config.labels || {});
+    state.config.facilities = Array.isArray(state.config.facilities) ? state.config.facilities : [];
     state.config.collections.visits = state.config.collections.visits || "visits";
     state.config.collections.reservations = state.config.collections.reservations || "reservations";
+    state.config.collections.settings = state.config.collections.settings || "siteSettings";
     state.config.labels.youthcutActivity = state.config.labels.youthcutActivity || "Youth Cut";
     state.config.labels.arFacility = state.config.labels.arFacility || "AR Sports";
     function start() {

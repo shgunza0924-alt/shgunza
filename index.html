@@ -74,23 +74,23 @@
         <div class="activities-box">
           <h3 class="activities-title">오늘 군자청소년문화센터에서는 뭐하고 놀꺼야? 😊</h3>
           <div id="activities-grid" class="activities-grid">
-            <button type="button" class="activity-card" data-activity="휴식">
+            <button type="button" class="activity-card" data-activity-id="rest" data-activity="휴식">
               <div class="activity-icon activity-icon-orange"><svg class="icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M18 8h1a4 4 0 0 1 0 8h-1"></path><path d="M2 8h16v9a4 4 0 0 1-4 4H6a4 4 0 0 1-4-4V8z"></path><line x1="6" y1="1" x2="6" y2="4"></line><line x1="10" y1="1" x2="10" y2="4"></line><line x1="14" y1="1" x2="14" y2="4"></line></svg></div>
               <span class="activity-label">휴식</span>
             </button>
-            <button type="button" class="activity-card" data-activity="보드게임">
+            <button type="button" class="activity-card" data-activity-id="boardgame" data-activity="보드게임">
               <div class="activity-icon activity-icon-blue"><svg class="icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><line x1="6" y1="12" x2="10" y2="12"></line><line x1="8" y1="10" x2="8" y2="14"></line><circle cx="15.5" cy="10.5" r="0.5" fill="currentColor"></circle><circle cx="18.5" cy="13.5" r="0.5" fill="currentColor"></circle><rect x="2" y="6" width="20" height="12" rx="3"></rect></svg></div>
               <span class="activity-label">보드게임</span>
             </button>
-            <button type="button" class="activity-card" data-activity="유스네컷">
+            <button type="button" class="activity-card" data-activity-id="youthcut" data-activity="유스네컷">
               <div class="activity-icon activity-icon-pink"><svg class="icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M23 19a2 2 0 0 1-2 2H3a2 2 0 0 1-2-2V8a2 2 0 0 1 2-2h4l2-3h6l2 3h4a2 2 0 0 1 2 2z"></path><circle cx="12" cy="13" r="4"></circle></svg></div>
               <span class="activity-label">유스네컷</span>
             </button>
-            <button type="button" class="activity-card" data-activity="독서">
+            <button type="button" class="activity-card" data-activity-id="reading" data-activity="독서">
               <div class="activity-icon activity-icon-emerald"><svg class="icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M2 3h6a4 4 0 0 1 4 4v14a3 3 0 0 0-3-3H2z"></path><path d="M22 3h-6a4 4 0 0 0-4 4v14a3 3 0 0 1 3-3h7z"></path></svg></div>
               <span class="activity-label">독서</span>
             </button>
-            <button type="button" class="activity-card" data-activity="컬러비즈">
+            <button type="button" class="activity-card" data-activity-id="beads" data-activity="컬러비즈">
               <div class="activity-icon activity-icon-purple"><svg class="icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="13.5" cy="6.5" r="0.5" fill="currentColor"></circle><circle cx="17.5" cy="10.5" r="0.5" fill="currentColor"></circle><circle cx="8.5" cy="7.5" r="0.5" fill="currentColor"></circle><circle cx="6.5" cy="12.5" r="0.5" fill="currentColor"></circle><path d="M12 2C6.5 2 2 6.5 2 12s4.5 10 10 10c.926 0 1.648-.746 1.648-1.688 0-.437-.18-.835-.437-1.125-.29-.289-.438-.652-.438-1.125a1.64 1.64 0 0 1 1.668-1.668h1.996c3.051 0 5.555-2.503 5.555-5.554C21.965 6.012 17.461 2 12 2z"></path></svg></div>
               <span class="activity-label">컬러비즈</span>
             </button>
@@ -217,7 +217,8 @@
       },
       auth: { adminEmail: "shgunza0924@gmail.com" },
       branding: { title: "군자청소년문화센터 관리자" },
-      collections: { visits: "visits", reservations: "reservations" },
+      collections: { visits: "visits", reservations: "reservations", settings: "siteSettings" },
+      facilities: ["AR 스포츠", "노래방1", "노래방2"],
       labels: { youthcutActivity: "유스네컷", arFacility: "AR 스포츠" }
     });
   </script>

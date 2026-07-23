@@ -1,8 +1,9 @@
 // Handles visitor registration while retaining the existing Firestore schema.
 import { notify } from "./notification.js";
+import { waitForAuth } from "./auth.js";
 import { db } from "./firebase.js";
 import { createAgeSelect, getKoreanNameError, isValidKoreanName } from "./utils.js";
-import { collection, addDoc, onSnapshot } from "https://www.gstatic.com/firebasejs/12.15.0/firebase-firestore.js";
+import { collection, addDoc, doc, onSnapshot } from "https://www.gstatic.com/firebasejs/12.15.0/firebase-firestore.js";
 
 let visits = [];
 let visitors = [{ name: "", age: "", gender: "남성" }];
@@ -12,6 +13,27 @@ const checkinForm = document.getElementById("checkin-form");
 const visitorsList = document.getElementById("checkin-visitors-list");
 const addVisitorBtn = document.getElementById("add-checkin-visitor-btn");
 const activitiesGrid = document.getElementById("activities-grid");
+
+function applyActivitySettings(items) {
+  if (!Array.isArray(items)) return;
+
+  items.forEach((item) => {
+    if (!item || !item.id || !item.name) return;
+    const card = [...activitiesGrid.querySelectorAll(".activity-card")]
+      .find((element) => element.dataset.activityId === item.id);
+    if (!card) return;
+
+    const previousName = card.dataset.activity;
+    const nextName = String(item.name).trim();
+    if (!nextName) return;
+    card.dataset.activity = nextName;
+    card.querySelector(".activity-label").textContent = nextName;
+
+    // Emoji is a lightweight visual alternative to externally hosted photos.
+    if (item.emoji) card.querySelector(".activity-icon").textContent = String(item.emoji);
+    activities = activities.map((activity) => activity === previousName ? nextName : activity);
+  });
+}
 
 export function getVisits() { return visits; }
 export function onVisitsChange(callback) { changeListeners.push(callback); }
@@ -37,7 +59,11 @@ function renderVisitors() {
     });
     if (visitors.length > 1) {
       const remove = document.createElement("button");
-      remove.type = "button"; remove.className = "member-remove-btn"; remove.textContent = "−";
+      remove.type = "button";
+      remove.className = "member-remove-btn checkin-remove-btn";
+      remove.textContent = "−";
+      remove.setAttribute("aria-label", `${index + 1}번째 방문자 삭제`);
+      remove.title = "방문자 삭제";
       remove.onclick = () => { visitors.splice(index, 1); renderVisitors(); };
       row.appendChild(remove);
     }
@@ -59,6 +85,7 @@ async function handleCheckIn(event) {
   if (invalid) { notify(getKoreanNameError(invalid.name)); return; }
   if (visitors.some((visitor) => !visitor.age)) { notify("나이를 선택해주세요."); return; }
   if (!activities.length) { notify("활동을 하나 이상 선택해주세요!"); return; }
+  if (!(await waitForAuth())) { notify("인증 준비에 실패했습니다. 잠시 후 다시 시도해주세요."); return; }
   const now = new Date();
   const timestamp = `${now.getFullYear()}. ${now.getMonth() + 1}. ${now.getDate()}. ${now.toLocaleTimeString()}`;
   try {
@@ -77,5 +104,29 @@ function wireForm() {
   }));
 }
 
-function subscribeToVisits() { onSnapshot(collection(db, "visits"), (snapshot) => { visits = snapshot.docs.map((doc) => ({ id: doc.id, ...doc.data() })).sort((a, b) => new Date(b.createdAt) - new Date(a.createdAt)); notifyChange(); }, (error) => console.error("Error fetching visits:", error)); }
-export function initVisit() { wireForm(); renderVisitors(); subscribeToVisits(); }
+function subscribeToVisits() {
+  onSnapshot(collection(db, "visits"), (snapshot) => {
+    visits = snapshot.docs
+      .map((doc) => ({ id: doc.id, ...doc.data() }))
+      .sort((a, b) => new Date(b.createdAt || 0) - new Date(a.createdAt || 0));
+    notifyChange();
+  }, (error) => {
+    console.error("Error fetching visits:", error);
+    notify("방문 내역을 불러오지 못했습니다.");
+  });
+}
+function subscribeToActivitySettings() {
+  onSnapshot(doc(db, "siteSettings", "activities"), (snapshot) => {
+    if (snapshot.exists()) applyActivitySettings(snapshot.data().items);
+  }, (error) => {
+    // The default SVG cards remain usable when optional settings cannot load.
+    console.warn("Activity settings could not be loaded:", error);
+  });
+}
+
+export function initVisit() {
+  wireForm();
+  renderVisitors();
+  subscribeToVisits();
+  subscribeToActivitySettings();
+}

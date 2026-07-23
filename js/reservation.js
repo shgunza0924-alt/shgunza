@@ -1,8 +1,8 @@
 // js/reservation.js
 // Handles 시설 예약 (facility reservation): new reservation form,
 // live reservations, and my-bookings preview.
-//수정확인
 import { notify } from "./notification.js";
+import { waitForAuth } from "./auth.js";
 import {
   getDateKey,
   generateTimeSlots,
@@ -25,7 +25,6 @@ import {
   onSnapshot 
 } from "https://www.gstatic.com/firebasejs/12.15.0/firebase-firestore.js";
 
-const today = new Date();
 const timeSlots = generateTimeSlots();
 const amSlots = getAmSlots(timeSlots);
 const pmSlots = getPmSlots(timeSlots);
@@ -80,9 +79,17 @@ function isSlotBooked(slot) {
     (r) =>
       r.facility === resData.facility &&
       r.timeSlot === slot &&
-      (r.dateKey || getDateKey(new Date(r.createdAt || Date.now()))) ===
-        getDateKey(today)
+      getReservationDateKey(r) === getDateKey(new Date())
   );
+}
+
+function getReservationDateKey(reservation) {
+  if (reservation.dateKey) return reservation.dateKey;
+  const createdAt = reservation.createdAt;
+  const date = typeof createdAt?.toDate === "function"
+    ? createdAt.toDate()
+    : new Date(createdAt);
+  return Number.isNaN(date.getTime()) ? "" : getDateKey(date);
 }
 
 function renderSlotGroup(container, slots) {
@@ -119,7 +126,10 @@ function renderTimeSlots() {
 function wireFacilitySelect() {
   facilitySelectEl.querySelectorAll(".facility-btn").forEach((btn) => {
     btn.addEventListener("click", () => {
+      const facilityChanged = resData.facility !== btn.dataset.facility;
       resData.facility = btn.dataset.facility;
+      // A selected time belongs to the previous facility and must not carry over.
+      if (facilityChanged) resData.timeSlot = "";
       facilitySelectEl.querySelectorAll(".facility-btn").forEach((b) => {
         b.classList.toggle("active", b === btn);
       });
@@ -204,6 +214,8 @@ function renderMembersList() {
 
     resMembersListEl.appendChild(row);
   });
+  addMemberBtn.disabled = resMembers.length >= 10;
+  addMemberBtn.textContent = resMembers.length >= 10 ? "최대 10명" : "+ 인원 추가";
 }
 
 function renderSubmitButtonState() {
@@ -224,11 +236,16 @@ async function handleReservation() {
     return;
   }
 
+  if (!(await waitForAuth())) {
+    notify("인증 준비에 실패했습니다. 잠시 후 다시 시도해주세요.");
+    return;
+  }
+
   const now = new Date();
   const dateKey = getDateKey(now);
   const newRes = {
     ...resData,
-    members: resMembers,
+    members: resMembers.map((member) => ({ ...member })),
     dateKey,
     createdAt: now.toISOString(),
   };
@@ -277,16 +294,30 @@ function findMyBookings() {
 
 function renderMyBookings() {
   myBookingsResultsEl.innerHTML = "";
+  if (myBookings.length === 0) {
+    const empty = document.createElement("p");
+    empty.className = "empty-state";
+    empty.setAttribute("role", "status");
+    empty.textContent = searchQuery.name
+      ? "조회된 예약이 없습니다."
+      : "이름과 나이를 입력해 예약 내역을 조회해주세요.";
+    myBookingsResultsEl.appendChild(empty);
+    return;
+  }
+
   myBookings.forEach((booking) => {
     const card = document.createElement("div");
     card.className = "booking-card";
 
     const top = document.createElement("div");
     top.className = "booking-card-top";
-    top.innerHTML = `
-      <span class="booking-facility-tag">${booking.facility}</span>
-      <span class="booking-time">${booking.timeSlot}</span>
-    `;
+    const facility = document.createElement("span");
+    facility.className = "booking-facility-tag";
+    facility.textContent = booking.facility || "시설 정보 없음";
+    const time = document.createElement("span");
+    time.className = "booking-time";
+    time.textContent = booking.timeSlot || "시간 정보 없음";
+    top.append(facility, time);
 
     const membersWrap = document.createElement("div");
     membersWrap.className = "booking-members";
@@ -333,6 +364,7 @@ function startEditBooking(booking) {
 }
 
 function renderEditBookingModal() {
+  if (!editingBooking?.members) return;
   editBookingMembersEl.innerHTML = "";
   editingBooking.members.forEach((m, i) => {
     const row = document.createElement("div");
@@ -365,6 +397,7 @@ function renderEditBookingModal() {
     genderGroup.className = "edit-member-gender";
     ["남성", "여성"].forEach((g) => {
       const gBtn = document.createElement("button");
+      gBtn.type = "button";
       gBtn.textContent = g;
       if (m.gender === g) gBtn.classList.add("active");
       gBtn.addEventListener("click", () => {
@@ -381,6 +414,7 @@ function renderEditBookingModal() {
 }
 
 async function handleUpdateBooking() {
+  if (!editingBooking) return;
   if (
     !editingBooking.members.every(
       (m) => isValidKoreanName(m.name) && String(m.age).trim() !== ""
@@ -443,6 +477,8 @@ function subscribeToReservations() {
     notifyChange();
   }, (error) => {
     console.error("Error fetching reservations:", error);
+    myBookings = [];
+    myBookingsResultsEl.innerHTML = '<p class="empty-state" role="alert">예약 정보를 불러오지 못했습니다. 잠시 후 다시 시도해주세요.</p>';
   });
 }
 
@@ -454,6 +490,7 @@ export function initReservation() {
   renderTimeSlots();
   renderMembersList();
   renderSubmitButtonState();
+  renderMyBookings();
 
   addMemberBtn.addEventListener("click", () => {
     if (resMembers.length < 10) {
