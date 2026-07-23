@@ -204,7 +204,8 @@
   </footer>
 
   <div id="admin-root"></div>
-  <script src="admin-tool/admin.js"></script>
+  <!-- Versioned URL prevents a browser/CDN from serving an older admin dashboard. -->
+  <script src="admin-tool/admin.js?v=20260723-activity-settings"></script>
   <script>
     AdminTool.init({
       firebase: {
