@@ -4,8 +4,9 @@
  * Project data is supplied exclusively through AdminTool.init().
  */
 (function () {
+  var MAX_ACTIVITIES = 12;
   var defaultActivities = [{ id: "rest", name: "휴식", emoji: "☕" }, { id: "boardgame", name: "보드게임", emoji: "🎲" }, { id: "youthcut", name: "유스네컷", emoji: "📸" }, { id: "reading", name: "독서", emoji: "📚" }, { id: "beads", name: "컬러비즈", emoji: "🟣" }];
-  var state = { config: null, app: null, auth: null, db: null, api: null, visits: [], reservations: [], activities: defaultActivities, ready: false, authReady: null, isAdmin: false, view: "visits", filter: "all", rangeStart: "", rangeEnd: "" };
+  var state = { config: null, app: null, auth: null, db: null, api: null, visits: [], reservations: [], activities: defaultActivities.map(function (item) { return Object.assign({}, item); }), ready: false, authReady: null, isAdmin: false, view: "visits", filter: "all", rangeStart: "", rangeEnd: "" };
 
   function normalizedEmail(value) {
     return String(value || "").trim().toLowerCase();
@@ -138,17 +139,37 @@
     var content = document.getElementById("at-ref-content");
     if (!content) return;
     var rows = state.activities.map(function (activity, index) {
-      return '<div class="at-activity-setting-row"><strong>' + (index + 1) + '</strong><label>활동명<input data-activity-name="' + esc(activity.id) + '" value="' + esc(activity.name) + '" maxlength="20"></label><label>이모지<input data-activity-emoji="' + esc(activity.id) + '" value="' + esc(activity.emoji) + '" maxlength="8"></label></div>';
+      return '<div class="at-activity-setting-row"><strong>' + (index + 1) + '</strong><label>활동명<input data-activity-name="' + esc(activity.id) + '" value="' + esc(activity.name) + '" maxlength="20"></label><label>이모지<input data-activity-emoji="' + esc(activity.id) + '" value="' + esc(activity.emoji) + '" maxlength="8"></label><button type="button" class="at-activity-delete" data-delete-activity="' + esc(activity.id) + '">삭제</button></div>';
     }).join("");
-    content.innerHTML = '<section class="at-activity-settings"><h2>방문 등록 활동 카드 관리</h2><p>사진 서비스 가입 없이 이모지로 카드를 꾸밀 수 있습니다. 활동명과 이모지는 방문 등록 화면에 바로 반영됩니다.</p><div class="at-activity-setting-list">' + rows + '</div><button id="at-save-activities" class="at-activity-save">활동 카드 저장</button></section>';
+    content.innerHTML = '<section class="at-activity-settings"><h2>방문 등록 활동 카드 관리</h2><p>사진 서비스 가입 없이 이모지로 카드를 꾸밀 수 있습니다. 카드는 1~' + MAX_ACTIVITIES + '개까지 추가·삭제할 수 있으며, 저장하면 방문 등록 화면에 바로 반영됩니다.</p><div class="at-activity-setting-list">' + rows + '</div><div class="at-activity-actions"><button type="button" id="at-add-activity" class="at-activity-add"' + (state.activities.length >= MAX_ACTIVITIES ? ' disabled' : '') + '>+ 활동 카드 추가</button><button id="at-save-activities" class="at-activity-save">활동 카드 저장</button></div></section>';
     document.getElementById("at-save-activities").onclick = saveActivitySettings;
+    document.getElementById("at-add-activity").onclick = addActivity;
+    content.querySelectorAll("[data-delete-activity]").forEach(function (button) { button.onclick = function () { removeActivity(button.dataset.deleteActivity); }; });
+  }
+  function readActivityInputs() {
+    return state.activities.map(function (activity) {
+      var nameInput = document.querySelector('[data-activity-name="' + activity.id + '"]');
+      var emojiInput = document.querySelector('[data-activity-emoji="' + activity.id + '"]');
+      return { id: activity.id, name: nameInput ? nameInput.value.trim() : activity.name, emoji: emojiInput ? emojiInput.value.trim() : activity.emoji };
+    });
+  }
+  function addActivity() {
+    state.activities = readActivityInputs();
+    if (state.activities.length >= MAX_ACTIVITIES) { notify("활동 카드는 최대 " + MAX_ACTIVITIES + "개까지 추가할 수 있습니다.", "error"); return; }
+    var number = state.activities.length + 1;
+    var name = "새 활동 " + number;
+    while (state.activities.some(function (item) { return item.name === name; })) { number++; name = "새 활동 " + number; }
+    state.activities.push({ id: "activity-" + Date.now() + "-" + number, name: name, emoji: "✨" });
+    renderActivitySettings();
+  }
+  function removeActivity(id) {
+    state.activities = readActivityInputs();
+    if (state.activities.length <= 1) { notify("활동 카드는 최소 1개가 필요합니다.", "error"); return; }
+    state.activities = state.activities.filter(function (activity) { return activity.id !== id; });
+    renderActivitySettings();
   }
   async function saveActivitySettings() {
-    var items = state.activities.map(function (activity) {
-      var name = document.querySelector('[data-activity-name="' + activity.id + '"]').value.trim();
-      var emoji = document.querySelector('[data-activity-emoji="' + activity.id + '"]').value.trim();
-      return { id: activity.id, name: name, emoji: emoji };
-    });
+    var items = readActivityInputs();
     if (items.some(function (item) { return !item.name; })) { notify("활동명을 모두 입력해주세요.", "error"); return; }
     if (new Set(items.map(function (item) { return item.name; })).size !== items.length) { notify("활동명은 서로 다르게 입력해주세요.", "error"); return; }
     try {
@@ -194,13 +215,18 @@
   }
 
   function csvCell(value) { var text = String(value == null ? "" : value); return /[\",\n\r]/.test(text) ? '"' + text.replace(/"/g, '""') + '"' : text; }
+  function exportPeriodSuffix() {
+    if (state.filter === "month") return localDateKey(new Date()).slice(0, 7);
+    if (state.filter === "custom") return state.rangeStart + "_to_" + state.rangeEnd;
+    return "all";
+  }
   function exportCsv(type) {
     var lines = [["구분", "일시/시간", "시설/활동", "이름", "나이", "성별"]];
     if (!type || type === "visits") state.visits.filter(inRange).forEach(function (visit) { (visit.activities || []).forEach(function (activity) { lines.push(["방문등록", visit.timestamp || dateText(visit.createdAt), activity, visit.name, visit.age, visit.gender]); }); });
     if (!type || type === "reservations") state.reservations.filter(inRange).forEach(function (reservation) { (reservation.members || []).forEach(function (member) { lines.push(["시설예약", (reservation.dateKey || dateText(reservation.createdAt)) + " " + (reservation.timeSlot || ""), reservation.facility, member.name, member.age, member.gender]); }); });
     if (lines.length === 1) { notify("다운로드할 데이터가 없습니다."); return; }
     var blob = new Blob(["\uFEFF" + lines.map(function (line) { return line.map(csvCell).join(","); }).join("\n")], { type: "text/csv;charset=utf-8" });
-    var link = document.createElement("a"); link.href = URL.createObjectURL(blob); link.download = (state.config.exportFileName || "admin-export") + ".csv"; link.click(); URL.revokeObjectURL(link.href);
+    var link = document.createElement("a"); link.href = URL.createObjectURL(blob); link.download = (state.config.exportFileName || "admin-export") + "-" + exportPeriodSuffix() + ".csv"; link.click(); URL.revokeObjectURL(link.href);
   }
 
   async function connect() {
@@ -225,7 +251,7 @@
     });
     firestoreApi.onSnapshot(firestoreApi.collection(state.db, state.config.collections.visits), function (snapshot) { state.visits = snapshot.docs.map(function (doc) { return Object.assign({ id: doc.id }, doc.data()); }).sort(function (a, b) { return dateValue(b.createdAt) - dateValue(a.createdAt); }); render(); }, function (error) { console.error("[AdminTool] visits subscription failed", error); });
     firestoreApi.onSnapshot(firestoreApi.collection(state.db, state.config.collections.reservations), function (snapshot) { state.reservations = snapshot.docs.map(function (doc) { return Object.assign({ id: doc.id }, doc.data()); }).sort(function (a, b) { return dateValue(b.createdAt) - dateValue(a.createdAt); }); render(); }, function (error) { console.error("[AdminTool] reservations subscription failed", error); });
-    firestoreApi.onSnapshot(firestoreApi.doc(state.db, state.config.collections.settings, "activities"), function (snapshot) { if (snapshot.exists() && Array.isArray(snapshot.data().items) && snapshot.data().items.length === defaultActivities.length) state.activities = snapshot.data().items; render(); }, function (error) { console.warn("[AdminTool] activity settings subscription failed", error); });
+    firestoreApi.onSnapshot(firestoreApi.doc(state.db, state.config.collections.settings, "activities"), function (snapshot) { var items = snapshot.exists() && snapshot.data().items; if (Array.isArray(items) && items.length > 0 && items.length <= MAX_ACTIVITIES) state.activities = items; render(); }, function (error) { console.warn("[AdminTool] activity settings subscription failed", error); });
   }
 
   window.AdminTool = { init: function (config) {

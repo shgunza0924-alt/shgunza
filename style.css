@@ -615,7 +615,7 @@ input {
   .activities-grid { grid-template-columns: repeat(3, 1fr); }
 }
 @media (min-width: 1024px) {
-  .activities-grid { grid-template-columns: repeat(5, 1fr); }
+  .activities-grid { grid-template-columns: repeat(auto-fit, minmax(150px, 1fr)); }
 }
 
 .activity-card {
@@ -644,6 +644,11 @@ input {
   padding: 16px;
   border-radius: 999px;
   background: var(--slate-50);
+}
+
+.activity-emoji {
+  font-size: 28px;
+  line-height: 1;
 }
 
 .activity-icon-orange { color: var(--orange-500); }

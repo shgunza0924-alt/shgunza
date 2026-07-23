@@ -14,24 +14,32 @@ const visitorsList = document.getElementById("checkin-visitors-list");
 const addVisitorBtn = document.getElementById("add-checkin-visitor-btn");
 const activitiesGrid = document.getElementById("activities-grid");
 
-function applyActivitySettings(items) {
-  if (!Array.isArray(items)) return;
+function renderActivityCards(items) {
+  if (!Array.isArray(items) || items.length === 0 || items.length > 12) return;
 
-  items.forEach((item) => {
-    if (!item || !item.id || !item.name) return;
-    const card = [...activitiesGrid.querySelectorAll(".activity-card")]
-      .find((element) => element.dataset.activityId === item.id);
-    if (!card) return;
+  const validItems = items.filter((item) => item?.id && String(item.name || "").trim());
+  if (validItems.length !== items.length) return;
 
-    const previousName = card.dataset.activity;
-    const nextName = String(item.name).trim();
-    if (!nextName) return;
-    card.dataset.activity = nextName;
-    card.querySelector(".activity-label").textContent = nextName;
+  activities = activities.filter((activity) =>
+    validItems.some((item) => item.name === activity)
+  );
+  activitiesGrid.innerHTML = "";
 
-    // Emoji is a lightweight visual alternative to externally hosted photos.
-    if (item.emoji) card.querySelector(".activity-icon").textContent = String(item.emoji);
-    activities = activities.map((activity) => activity === previousName ? nextName : activity);
+  validItems.forEach((item) => {
+    const card = document.createElement("button");
+    card.type = "button";
+    card.className = "activity-card";
+    card.dataset.activityId = item.id;
+    card.dataset.activity = item.name;
+
+    const icon = document.createElement("div");
+    icon.className = "activity-icon activity-emoji";
+    icon.textContent = item.emoji || "✨";
+    const label = document.createElement("span");
+    label.className = "activity-label";
+    label.textContent = item.name;
+    card.append(icon, label);
+    activitiesGrid.appendChild(card);
   });
 }
 
@@ -97,11 +105,13 @@ async function handleCheckIn(event) {
 function wireForm() {
   checkinForm.addEventListener("submit", handleCheckIn);
   addVisitorBtn.addEventListener("click", () => { if (visitors.length < 10) { visitors.push({ name: "", age: "", gender: "남성" }); renderVisitors(); } });
-  activitiesGrid.querySelectorAll(".activity-card").forEach((card) => card.addEventListener("click", () => {
+  activitiesGrid.addEventListener("click", (event) => {
+    const card = event.target.closest(".activity-card");
+    if (!card || !activitiesGrid.contains(card)) return;
     const activity = card.dataset.activity;
     activities = activities.includes(activity) ? activities.filter((item) => item !== activity) : [...activities, activity];
     card.classList.toggle("active", activities.includes(activity));
-  }));
+  });
 }
 
 function subscribeToVisits() {
@@ -117,7 +127,7 @@ function subscribeToVisits() {
 }
 function subscribeToActivitySettings() {
   onSnapshot(doc(db, "siteSettings", "activities"), (snapshot) => {
-    if (snapshot.exists()) applyActivitySettings(snapshot.data().items);
+    if (snapshot.exists()) renderActivityCards(snapshot.data().items);
   }, (error) => {
     // The default SVG cards remain usable when optional settings cannot load.
     console.warn("Activity settings could not be loaded:", error);
