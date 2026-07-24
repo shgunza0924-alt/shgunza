@@ -120,7 +120,17 @@
     if (state.filter === "month") return key.slice(0, 7) === localDateKey(new Date()).slice(0, 7);
     return state.filter !== "custom" || (key >= state.rangeStart && key <= state.rangeEnd);
   }
-  function purposeList(records) { var configured = state.config.visitPurposes || []; return configured.length ? configured : Array.from(new Set(records.reduce(function (all, row) { return all.concat(row.activities || []); }, []))); }
+  function currentActivityName(name) {
+    var activity = state.activities.find(function (item) { return item.name === name || (item.aliases || []).includes(name); });
+    return activity ? activity.name : name;
+  }
+  function purposeList(records) {
+    var configured = state.config.visitPurposes || [];
+    if (configured.length) return configured;
+    var currentNames = state.activities.map(function (item) { return item.name; });
+    var recordedNames = records.reduce(function (all, row) { return all.concat((row.activities || []).map(currentActivityName)); }, []);
+    return Array.from(new Set(currentNames.concat(recordedNames)));
+  }
   function facilityList(records) {
     var configured = state.config.facilities || [];
     var recorded = records.map(function (row) { return row.facility; }).filter(Boolean);
@@ -129,7 +139,7 @@
   function statsTable(records, purposes, memberMode, ar) {
     var gs = groups(), totals = {};
     purposes.forEach(function (p) { totals[p] = gs.map(function () { return [0, 0]; }); });
-    records.filter(inRange).forEach(function (row) { var people = memberMode ? (row.members || []) : [row]; var ps = memberMode ? [row.facility || "시설 미지정"] : (row.activities || []); people.forEach(function (person) { var age = Number(person.age), gi = gs.findIndex(function (g) { return age >= g.min && age <= g.max; }); ps.forEach(function (p) { if (gi >= 0 && totals[p]) totals[p][gi][person.gender === "여성" ? 1 : 0]++; }); }); });
+    records.filter(inRange).forEach(function (row) { var people = memberMode ? (row.members || []) : [row]; var ps = memberMode ? [row.facility || "시설 미지정"] : (row.activities || []).map(currentActivityName); people.forEach(function (person) { var age = Number(person.age), gi = gs.findIndex(function (g) { return age >= g.min && age <= g.max; }); ps.forEach(function (p) { if (gi >= 0 && totals[p]) totals[p][gi][person.gender === "여성" ? 1 : 0]++; }); }); });
     var colTotal = function (cells, predicate) { return cells.reduce(function (sum, pair, i) { return sum + (predicate ? (predicate(gs[i]) ? pair[0] + pair[1] : 0) : pair[0] + pair[1]); }, 0); };
     var head = '<thead><tr><th rowspan="2">' + (memberMode ? "이용 목적" : "이용 목적") + '</th>' + gs.map(function (g) { return '<th colspan="2">' + esc(g.label) + '</th>'; }).join("") + '<th rowspan="2" class="' + (ar ? 'at-ar-sum-col' : 'at-sum-col') + '">청소년 합계</th><th rowspan="2" class="' + (ar ? 'at-ar-sum-col' : 'at-sum-col') + '">청년 합계</th><th rowspan="2" class="at-total-sum-col">전체 합계</th></tr><tr class="at-gender-header">' + gs.map(function () { return '<th class="at-male">남</th><th class="at-female">여</th>'; }).join("") + '</tr></thead>';
     var body = purposes.map(function (p) { var cells = totals[p]; return '<tr class="at-category-row"><td>' + esc(p) + '</td>' + cells.map(function (pair) { return '<td>' + pair[0] + '</td><td>' + pair[1] + '</td>'; }).join("") + '<td class="' + (ar ? 'at-ar-sum-col' : 'at-sum-col') + '">' + colTotal(cells, function (g) { return g.max <= 19; }) + '</td><td class="' + (ar ? 'at-ar-sum-col' : 'at-sum-col') + '">' + colTotal(cells, function (g) { return g.min >= 20 && g.max <= 39; }) + '</td><td class="at-total-sum-col">' + colTotal(cells) + '</td></tr>'; }).join("");
@@ -150,7 +160,7 @@
     return state.activities.map(function (activity) {
       var nameInput = document.querySelector('[data-activity-name="' + activity.id + '"]');
       var emojiInput = document.querySelector('[data-activity-emoji="' + activity.id + '"]');
-      return { id: activity.id, name: nameInput ? nameInput.value.trim() : activity.name, emoji: emojiInput ? emojiInput.value.trim() : activity.emoji };
+      return { id: activity.id, name: nameInput ? nameInput.value.trim() : activity.name, emoji: emojiInput ? emojiInput.value.trim() : activity.emoji, aliases: activity.aliases || [] };
     });
   }
   function addActivity() {
@@ -159,7 +169,7 @@
     var number = state.activities.length + 1;
     var name = "새 활동 " + number;
     while (state.activities.some(function (item) { return item.name === name; })) { number++; name = "새 활동 " + number; }
-    state.activities.push({ id: "activity-" + Date.now() + "-" + number, name: name, emoji: "✨" });
+    state.activities.push({ id: "activity-" + Date.now() + "-" + number, name: name, emoji: "✨", aliases: [] });
     renderActivitySettings();
   }
   function removeActivity(id) {
@@ -169,7 +179,14 @@
     renderActivitySettings();
   }
   async function saveActivitySettings() {
-    var items = readActivityInputs();
+    var items = readActivityInputs().map(function (item) {
+      var previous = state.activities.find(function (activity) { return activity.id === item.id; });
+      var aliases = new Set(item.aliases || []);
+      if (previous && previous.name !== item.name) aliases.add(previous.name);
+      aliases.delete(item.name);
+      item.aliases = Array.from(aliases);
+      return item;
+    });
     if (items.some(function (item) { return !item.name; })) { notify("활동명을 모두 입력해주세요.", "error"); return; }
     if (new Set(items.map(function (item) { return item.name; })).size !== items.length) { notify("활동명은 서로 다르게 입력해주세요.", "error"); return; }
     try {
