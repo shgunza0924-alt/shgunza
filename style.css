@@ -165,6 +165,30 @@ input {
   padding: 32px;
 }
 
+.facility-notice-modal-box {
+  max-width: 30rem;
+  text-align: center;
+}
+
+.facility-notice-icon {
+  margin-bottom: 16px;
+  font-size: 52px;
+  line-height: 1;
+}
+
+.facility-notice-message {
+  margin: 20px 0 28px;
+  padding: 20px;
+  border-radius: 20px;
+  background: var(--indigo-50);
+  color: var(--slate-700);
+  font-size: 17px;
+  font-weight: 700;
+  line-height: 1.7;
+  text-align: left;
+  white-space: pre-wrap;
+}
+
 .modal-title {
   font-size: 24px;
   font-weight: 900;
@@ -547,6 +571,28 @@ input {
 .age-select:invalid, .age-select:has(option:checked[value=""]) { color: var(--slate-400); }
 
 .checkin-members-header { display: flex; align-items: center; justify-content: space-between; margin-bottom: 16px; }
+.people-counter {
+  display: inline-grid;
+  grid-template-columns: 44px minmax(58px, auto) 44px;
+  align-items: center;
+  overflow: hidden;
+  border: 2px solid var(--blue-100);
+  border-radius: 16px;
+  background: var(--white);
+}
+.people-counter button {
+  min-height: 44px;
+  background: var(--blue-50);
+  color: var(--blue-600);
+  font-size: 24px;
+  font-weight: 900;
+}
+.people-counter button:hover:not(:disabled) { background: var(--blue-100); }
+.people-counter button:disabled { color: var(--slate-300); cursor: not-allowed; opacity: .55; }
+.people-counter strong { padding: 0 8px; color: var(--slate-800); text-align: center; font-size: 15px; }
+.people-counter-indigo { border-color: var(--indigo-100); }
+.people-counter-indigo button { background: var(--indigo-50); color: var(--indigo-600); }
+.people-counter-indigo button:hover:not(:disabled) { background: var(--indigo-100); }
 .checkin-visitors-list { display: flex; flex-direction: column; gap: 16px; margin-bottom: 24px; }
 .checkin-visitor-row { display: grid; grid-template-columns: 1fr 1fr 1fr auto; gap: 16px; align-items: end; padding: 16px; border: 2px solid var(--slate-100); border-radius: 20px; background: var(--slate-50); }
 .checkin-visitor-row .member-remove-btn { align-self: end; margin-bottom: 0; }
@@ -602,7 +648,15 @@ input {
   font-weight: 900;
   color: var(--blue-700);
   text-align: center;
-  margin: 0 0 32px 0;
+  margin: 0 0 8px 0;
+}
+
+.activities-hint {
+  margin: 0 0 32px;
+  color: var(--blue-500);
+  font-size: 14px;
+  font-weight: 800;
+  text-align: center;
 }
 
 .activities-grid {
@@ -630,7 +684,30 @@ input {
   opacity: 0.6;
   transition: all 0.15s;
   cursor: pointer;
+  position: relative;
 }
+
+.activity-card::after {
+  content: "✓";
+  position: absolute;
+  top: -10px;
+  right: -10px;
+  width: 30px;
+  height: 30px;
+  border: 3px solid var(--white);
+  border-radius: 999px;
+  background: var(--yellow-300);
+  color: var(--blue-700);
+  display: grid;
+  place-items: center;
+  font-size: 15px;
+  font-weight: 900;
+  opacity: 0;
+  transform: scale(.7);
+  transition: all .15s ease;
+}
+
+.activity-card.active::after { opacity: 1; transform: scale(1); }
 
 .activity-card.active {
   background: var(--white);
@@ -731,6 +808,21 @@ input {
   font-size: 14px;
 }
 
+.booking-hours-display {
+  display: flex;
+  align-items: center;
+  flex-wrap: wrap;
+  gap: 8px 12px;
+  margin-top: 14px;
+  padding: 12px 16px;
+  border: 1px solid var(--indigo-100);
+  border-radius: 16px;
+  background: var(--indigo-50);
+  color: var(--indigo-700);
+}
+.booking-hours-display strong { font-size: 14px; }
+.booking-hours-display span { font-size: 14px; font-weight: 700; }
+
 .facility-select {
   display: grid;
   grid-template-columns: repeat(3, 1fr);
@@ -830,7 +922,18 @@ input {
   background: var(--white);
   transition: all 0.15s;
   cursor: pointer;
+  min-height: 72px;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  gap: 3px;
 }
+
+.time-slot-start { font-size: 16px; font-weight: 900; }
+.time-slot-end { color: var(--slate-400); font-size: 11px; font-weight: 800; }
+.time-slot-btn.selected .time-slot-end { color: var(--blue-100); }
+.time-slot-status { color: var(--slate-400); font-size: 11px; font-weight: 900; }
 
 .time-slot-btn:hover {
   border-color: var(--blue-400);
@@ -1153,6 +1256,8 @@ input {
   .time-slot-btn { padding: 12px 2px; font-size: 12px; }
   .booking-card { padding: 24px; border-radius: 2rem; }
   .booking-card-top { gap: 12px; flex-wrap: wrap; }
+  .checkin-members-header, .members-header-row { align-items: flex-start; gap: 12px; }
+  .people-counter { grid-template-columns: 40px minmax(50px, auto) 40px; }
   .edit-member-row .edit-member-fields { flex-direction: column; }
   .edit-member-row .edit-member-fields .age-select.field-age { width: 100%; }
 }

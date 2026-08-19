@@ -5,7 +5,7 @@
 <meta name="viewport" content="width=device-width, initial-scale=1.0" />
 <title>군자청소년문화센터 </title>
 <link rel="stylesheet" href="style.css" />
-<link rel="stylesheet" href="admin-tool/admin.css" />
+<link rel="stylesheet" href="admin-tool/admin.css?v=20260820-reservation-import-v1" />
 </head>
 <body>
 
@@ -26,6 +26,16 @@
       </div>
       <div id="edit-booking-members" class="edit-booking-members"></div>
       <button id="edit-booking-save-btn" class="btn btn-primary btn-block btn-xl mt-6">저장하기</button>
+    </div>
+  </div>
+
+  <!-- ===================== FACILITY NOTICE MODAL ===================== -->
+  <div id="facility-notice-modal" class="modal-overlay hidden" style="z-index:61;">
+    <div class="modal-box facility-notice-modal-box">
+      <div class="facility-notice-icon" aria-hidden="true">📢</div>
+      <h3 id="facility-notice-title" class="modal-title">시설 이용 전 안내</h3>
+      <p id="facility-notice-message" class="facility-notice-message"></p>
+      <button id="facility-notice-confirm-btn" type="button" class="btn btn-secondary btn-block btn-lg">확인했습니다</button>
     </div>
   </div>
 
@@ -67,12 +77,17 @@
       <form id="checkin-form" class="checkin-form">
         <div class="checkin-members-header">
           <h3 class="section-subtitle">방문자 정보 입력</h3>
-          <button id="add-checkin-visitor-btn" type="button" class="link-btn">+ 방문자 추가</button>
+          <div class="people-counter" aria-label="방문자 인원수 조절">
+            <button id="remove-checkin-visitor-btn" type="button" aria-label="방문자 한 명 줄이기">−</button>
+            <strong id="checkin-visitor-count" aria-live="polite">1명</strong>
+            <button id="add-checkin-visitor-btn" type="button" aria-label="방문자 한 명 추가">+</button>
+          </div>
         </div>
         <div id="checkin-visitors-list" class="checkin-visitors-list"></div>
 
         <div class="activities-box">
-          <h3 class="activities-title">오늘 군자청소년문화센터에서는 뭐하고 놀꺼야? 😊</h3>
+          <h3 class="activities-title">오늘 군자청소년문화센터에서는 뭐 하고 놀 거야? 😊</h3>
+          <p class="activities-hint">여러 개 선택할 수 있어요</p>
           <div id="activities-grid" class="activities-grid">
             <button type="button" class="activity-card" data-activity-id="rest" data-activity="휴식">
               <div class="activity-icon activity-icon-orange"><svg class="icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M18 8h1a4 4 0 0 1 0 8h-1"></path><path d="M2 8h16v9a4 4 0 0 1-4 4H6a4 4 0 0 1-4-4V8z"></path><line x1="6" y1="1" x2="6" y2="4"></line><line x1="10" y1="1" x2="10" y2="4"></line><line x1="14" y1="1" x2="14" y2="4"></line></svg></div>
@@ -117,6 +132,10 @@
               <svg class="icon icon-sm" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="10"></circle><line x1="12" y1="16" x2="12" y2="12"></line><line x1="12" y1="8" x2="12.01" y2="8"></line></svg>
               <span>시설별 하루 1회 예약 가능</span>
             </div>
+            <div id="booking-hours-display" class="booking-hours-display" aria-live="polite">
+              <strong>오늘 운영시간</strong>
+              <span id="booking-hours-text">운영시간을 불러오는 중입니다</span>
+            </div>
           </div>
         </div>
 
@@ -159,7 +178,11 @@
                 <svg class="icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M17 21v-2a4 4 0 0 0-4-4H5a4 4 0 0 0-4 4v2"></path><circle cx="9" cy="7" r="4"></circle><path d="M23 21v-2a4 4 0 0 0-3-3.87"></path><path d="M16 3.13a4 4 0 0 1 0 7.75"></path></svg>
                 이용자 정보 입력
               </h3>
-              <button id="add-member-btn" class="link-btn">+ 인원 추가</button>
+              <div class="people-counter people-counter-indigo" aria-label="예약 인원수 조절">
+                <button id="remove-member-btn" type="button" aria-label="예약 인원 한 명 줄이기">−</button>
+                <strong id="reservation-member-count" aria-live="polite">1명</strong>
+                <button id="add-member-btn" type="button" aria-label="예약 인원 한 명 추가">+</button>
+              </div>
             </div>
             <div id="res-members-list" class="res-members-list"></div>
             <button id="reservation-submit-btn" class="btn btn-secondary btn-block btn-xl mt-4" disabled>인원수대로 정보를 빠짐없이 입력해주세요</button>
@@ -205,7 +228,8 @@
 
   <div id="admin-root"></div>
   <!-- Versioned URL prevents a browser/CDN from serving an older admin dashboard. -->
-  <script src="admin-tool/admin.js?v=20260723-activity-management-v2"></script>
+  <script src="admin-tool/visit-import.js?v=20260820-reservation-import-v1"></script>
+  <script src="admin-tool/admin.js?v=20260820-reservation-import-v1"></script>
   <script>
     AdminTool.init({
       firebase: {
@@ -218,7 +242,7 @@
       },
       auth: { adminEmail: "shgunza0924@gmail.com" },
       branding: { title: "군자청소년문화센터 관리자" },
-      collections: { visits: "visits", reservations: "reservations", settings: "siteSettings" },
+      collections: { visits: "visits", reservations: "reservations", trash: "visitTrash", settings: "siteSettings" },
       facilities: ["AR 스포츠", "노래방1", "노래방2"],
       labels: { youthcutActivity: "유스네컷", arFacility: "AR 스포츠" }
     });

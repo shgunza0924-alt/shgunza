@@ -25,9 +25,25 @@ import {
   onSnapshot 
 } from "https://www.gstatic.com/firebasejs/12.15.0/firebase-firestore.js";
 
-const timeSlots = generateTimeSlots();
-const amSlots = getAmSlots(timeSlots);
-const pmSlots = getPmSlots(timeSlots);
+const DEFAULT_BOOKING_SETTINGS = {
+  schedule: {
+    weekday: { start: "09:00", end: "19:00" },
+    weekend: { start: "09:00", end: "19:00" },
+    lunch: { enabled: true, start: "12:00", end: "13:00" },
+  },
+  notices: {
+    "AR 스포츠": { enabled: true, message: "AR 스포츠는 1회 20분, 최대 10명까지 이용할 수 있습니다." },
+    "노래방1": { enabled: true, message: "노래방 1실은 1회 20분, 최대 10명까지 이용할 수 있습니다." },
+    "노래방2": { enabled: true, message: "노래방 2실은 1회 20분, 최대 10명까지 이용할 수 있습니다." },
+  },
+};
+
+let bookingSettings = JSON.parse(JSON.stringify(DEFAULT_BOOKING_SETTINGS));
+let bookingSettingsLoaded = false;
+let pendingFacilityNotice = null;
+let timeSlots = [];
+let amSlots = [];
+let pmSlots = [];
 
 let reservations = [];
 const changeListeners = [];
@@ -47,7 +63,16 @@ const amSlotsEl = document.getElementById("am-slots");
 const pmSlotsEl = document.getElementById("pm-slots");
 const resMembersListEl = document.getElementById("res-members-list");
 const addMemberBtn = document.getElementById("add-member-btn");
+const removeMemberBtn = document.getElementById("remove-member-btn");
+const memberCountEl = document.getElementById("reservation-member-count");
 const reservationSubmitBtn = document.getElementById("reservation-submit-btn");
+const bookingHoursTextEl = document.getElementById("booking-hours-text");
+const reservationsTabBtn = document.getElementById("tab-reservations-btn");
+
+const facilityNoticeModalEl = document.getElementById("facility-notice-modal");
+const facilityNoticeTitleEl = document.getElementById("facility-notice-title");
+const facilityNoticeMessageEl = document.getElementById("facility-notice-message");
+const facilityNoticeConfirmBtn = document.getElementById("facility-notice-confirm-btn");
 
 const searchNameInput = document.getElementById("search-name");
 const searchAgeInput = document.getElementById("search-age");
@@ -69,6 +94,67 @@ export function onReservationsChange(callback) {
 
 function notifyChange() {
   changeListeners.forEach((cb) => cb(reservations));
+}
+
+function normalizeBookingSettings(value = {}) {
+  const schedule = value.schedule || {};
+  const notices = value.notices || {};
+  return {
+    schedule: {
+      weekday: { ...DEFAULT_BOOKING_SETTINGS.schedule.weekday, ...(schedule.weekday || {}) },
+      weekend: { ...DEFAULT_BOOKING_SETTINGS.schedule.weekend, ...(schedule.weekend || {}) },
+      lunch: { ...DEFAULT_BOOKING_SETTINGS.schedule.lunch, ...(schedule.lunch || {}) },
+    },
+    notices: Object.fromEntries(
+      Object.entries(DEFAULT_BOOKING_SETTINGS.notices).map(([facility, defaults]) => [
+        facility,
+        { ...defaults, ...(notices[facility] || {}) },
+      ])
+    ),
+  };
+}
+
+function getTodaySchedule() {
+  const day = new Date().getDay();
+  return day === 0 || day === 6
+    ? { label: "주말", ...bookingSettings.schedule.weekend }
+    : { label: "평일", ...bookingSettings.schedule.weekday };
+}
+
+function rebuildTimeSlots() {
+  const today = getTodaySchedule();
+  const lunch = bookingSettings.schedule.lunch;
+  timeSlots = generateTimeSlots({
+    start: today.start,
+    end: today.end,
+    lunchEnabled: lunch.enabled,
+    lunchStart: lunch.start,
+    lunchEnd: lunch.end,
+  });
+  amSlots = getAmSlots(timeSlots);
+  pmSlots = getPmSlots(timeSlots);
+  if (resData.timeSlot && !timeSlots.includes(resData.timeSlot)) resData.timeSlot = "";
+  bookingHoursTextEl.textContent = `${today.label} ${today.start}~${today.end}${lunch.enabled ? ` · 점심시간 ${lunch.start}~${lunch.end}` : ""}`;
+  renderTimeSlots();
+  renderSubmitButtonState();
+}
+
+function showFacilityNotice(facility) {
+  if (!bookingSettingsLoaded) {
+    pendingFacilityNotice = facility;
+    return;
+  }
+  const notice = bookingSettings.notices[facility];
+  if (!notice?.enabled || !String(notice.message || "").trim()) return;
+  const label = facility === "노래방1" ? "노래방 1실" : facility === "노래방2" ? "노래방 2실" : facility;
+  facilityNoticeTitleEl.textContent = `${label} 이용 전 안내`;
+  facilityNoticeMessageEl.textContent = notice.message;
+  facilityNoticeModalEl.classList.remove("hidden");
+  facilityNoticeConfirmBtn.focus();
+}
+
+function hideFacilityNotice() {
+  facilityNoticeModalEl.classList.add("hidden");
 }
 
 // ===================================================================
@@ -99,10 +185,16 @@ function renderSlotGroup(container, slots) {
     const btn = document.createElement("button");
     btn.type = "button";
     btn.className = "time-slot-btn";
-    btn.textContent = slot;
+    const [start, end] = slot.split("~");
+    btn.setAttribute("aria-label", `${start}부터 ${end}까지${booked ? ", 예약됨" : ""}`);
+    btn.innerHTML = `<span class="time-slot-start">${start}</span><span class="time-slot-end">~ ${end}</span>`;
     if (booked) {
       btn.classList.add("booked");
       btn.disabled = true;
+      const status = document.createElement("span");
+      status.className = "time-slot-status";
+      status.textContent = "예약됨";
+      btn.appendChild(status);
     } else {
       if (resData.timeSlot === slot) btn.classList.add("selected");
       btn.addEventListener("click", () => {
@@ -134,6 +226,7 @@ function wireFacilitySelect() {
         b.classList.toggle("active", b === btn);
       });
       renderTimeSlots();
+      showFacilityNotice(resData.facility);
     });
   });
 }
@@ -215,7 +308,8 @@ function renderMembersList() {
     resMembersListEl.appendChild(row);
   });
   addMemberBtn.disabled = resMembers.length >= 10;
-  addMemberBtn.textContent = resMembers.length >= 10 ? "최대 10명" : "+ 인원 추가";
+  removeMemberBtn.disabled = resMembers.length <= 1;
+  memberCountEl.textContent = `${resMembers.length}명`;
 }
 
 function renderSubmitButtonState() {
@@ -482,12 +576,30 @@ function subscribeToReservations() {
   });
 }
 
+function subscribeToBookingSettings() {
+  onSnapshot(doc(db, "siteSettings", "bookingSettings"), (snapshot) => {
+    bookingSettings = normalizeBookingSettings(snapshot.exists() ? snapshot.data() : {});
+    bookingSettingsLoaded = true;
+    rebuildTimeSlots();
+    if (pendingFacilityNotice) {
+      const facility = pendingFacilityNotice;
+      pendingFacilityNotice = null;
+      const reservationPanel = document.getElementById("tab-reservations");
+      if (reservationPanel && !reservationPanel.classList.contains("hidden")) showFacilityNotice(facility);
+    }
+  }, (error) => {
+    console.warn("Booking settings could not be loaded:", error);
+    bookingSettingsLoaded = true;
+    rebuildTimeSlots();
+  });
+}
+
 // ===================================================================
 // Init
 // ===================================================================
 export function initReservation() {
   wireFacilitySelect();
-  renderTimeSlots();
+  rebuildTimeSlots();
   renderMembersList();
   renderSubmitButtonState();
   renderMyBookings();
@@ -495,6 +607,13 @@ export function initReservation() {
   addMemberBtn.addEventListener("click", () => {
     if (resMembers.length < 10) {
       resMembers.push({ name: "", age: "", gender: "남성" });
+      renderMembersList();
+      renderSubmitButtonState();
+    }
+  });
+  removeMemberBtn.addEventListener("click", () => {
+    if (resMembers.length > 1) {
+      resMembers.pop();
       renderMembersList();
       renderSubmitButtonState();
     }
@@ -511,6 +630,14 @@ export function initReservation() {
   });
   
   editBookingSaveBtn.addEventListener("click", handleUpdateBooking);
+  facilityNoticeConfirmBtn.addEventListener("click", hideFacilityNotice);
+  facilityNoticeModalEl.addEventListener("click", (event) => {
+    if (event.target === facilityNoticeModalEl) hideFacilityNotice();
+  });
+  reservationsTabBtn.addEventListener("click", () => {
+    window.setTimeout(() => showFacilityNotice(resData.facility), 0);
+  });
 
   subscribeToReservations();
+  subscribeToBookingSettings();
 }

@@ -59,26 +59,29 @@ export function createAgeSelect(value = "", className = "") {
 const END_HOUR = 19;
 const END_MIN = 0; // 18:40-19:00이 마지막 타임이 되도록 19:00으로 종료 시간 수정
 
-export function generateTimeSlots() {
+function timeToMinutes(value, fallback) {
+  const match = /^(\d{2}):(\d{2})$/.exec(String(value || ""));
+  if (!match) return fallback;
+  return Number(match[1]) * 60 + Number(match[2]);
+}
+
+function minutesToTime(value) {
+  return `${String(Math.floor(value / 60)).padStart(2, "0")}:${String(value % 60).padStart(2, "0")}`;
+}
+
+export function generateTimeSlots(options = {}) {
   const slots = [];
-  let current = new Date();
-  current.setHours(9, 0, 0, 0);
-  const endThreshold = new Date();
-  endThreshold.setHours(END_HOUR, END_MIN, 0, 0);
+  const interval = Number(options.interval) > 0 ? Number(options.interval) : 20;
+  const startMinutes = timeToMinutes(options.start, 9 * 60);
+  const endMinutes = timeToMinutes(options.end, END_HOUR * 60 + END_MIN);
+  const lunchEnabled = options.lunchEnabled !== false;
+  const lunchStart = timeToMinutes(options.lunchStart, 12 * 60);
+  const lunchEnd = timeToMinutes(options.lunchEnd, 13 * 60);
 
-  while (current < endThreshold) {
-    const hour = current.getHours();
-
-    // 점심시간(12시) 제외 로직
-    if (hour !== 12) {
-      const start = current.toTimeString().substring(0, 5);
-      const next = new Date(current.getTime() + 20 * 60000);
-      const end = next.toTimeString().substring(0, 5);
-      slots.push(`${start}~${end}`);
-    }
-
-    // 다음 슬롯으로 이동 (20분 단위)
-    current = new Date(current.getTime() + 20 * 60000);
+  for (let current = startMinutes; current + interval <= endMinutes; current += interval) {
+    const next = current + interval;
+    const overlapsLunch = lunchEnabled && current < lunchEnd && next > lunchStart;
+    if (!overlapsLunch) slots.push(`${minutesToTime(current)}~${minutesToTime(next)}`);
   }
   return slots;
 }

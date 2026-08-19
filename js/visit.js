@@ -12,6 +12,8 @@ const changeListeners = [];
 const checkinForm = document.getElementById("checkin-form");
 const visitorsList = document.getElementById("checkin-visitors-list");
 const addVisitorBtn = document.getElementById("add-checkin-visitor-btn");
+const removeVisitorBtn = document.getElementById("remove-checkin-visitor-btn");
+const visitorCountEl = document.getElementById("checkin-visitor-count");
 const activitiesGrid = document.getElementById("activities-grid");
 
 function renderActivityCards(items) {
@@ -29,6 +31,7 @@ function renderActivityCards(items) {
     const card = document.createElement("button");
     card.type = "button";
     card.className = "activity-card";
+    card.setAttribute("aria-pressed", "false");
     card.dataset.activityId = item.id;
     card.dataset.activity = item.name;
 
@@ -78,13 +81,17 @@ function renderVisitors() {
     visitorsList.appendChild(row);
   });
   addVisitorBtn.disabled = visitors.length >= 10;
-  addVisitorBtn.textContent = visitors.length >= 10 ? "최대 10명" : "+ 방문자 추가";
+  removeVisitorBtn.disabled = visitors.length <= 1;
+  visitorCountEl.textContent = `${visitors.length}명`;
 }
 
 function resetFormUI() {
   visitors = [{ name: "", age: "", gender: "남성" }]; activities = [];
   renderVisitors();
-  activitiesGrid.querySelectorAll(".activity-card").forEach((card) => card.classList.remove("active"));
+  activitiesGrid.querySelectorAll(".activity-card").forEach((card) => {
+    card.classList.remove("active");
+    card.setAttribute("aria-pressed", "false");
+  });
 }
 
 async function handleCheckIn(event) {
@@ -104,13 +111,16 @@ async function handleCheckIn(event) {
 
 function wireForm() {
   checkinForm.addEventListener("submit", handleCheckIn);
+  activitiesGrid.querySelectorAll(".activity-card").forEach((card) => card.setAttribute("aria-pressed", "false"));
   addVisitorBtn.addEventListener("click", () => { if (visitors.length < 10) { visitors.push({ name: "", age: "", gender: "남성" }); renderVisitors(); } });
+  removeVisitorBtn.addEventListener("click", () => { if (visitors.length > 1) { visitors.pop(); renderVisitors(); } });
   activitiesGrid.addEventListener("click", (event) => {
     const card = event.target.closest(".activity-card");
     if (!card || !activitiesGrid.contains(card)) return;
     const activity = card.dataset.activity;
     activities = activities.includes(activity) ? activities.filter((item) => item !== activity) : [...activities, activity];
     card.classList.toggle("active", activities.includes(activity));
+    card.setAttribute("aria-pressed", String(activities.includes(activity)));
   });
 }
 

@@ -11,11 +11,14 @@ shapes:
 
 - `visits`: `{ name, age, gender, activities, timestamp, createdAt }`
 - `reservations`: `{ facility, timeSlot, dateKey, members, createdAt }`
+- `visitTrash`: `{ originalId, record, deletedAt }` (visit records only)
 
 The dashboard subscribes to both collections in real time and provides:
 
 - email/password administrator authentication
-- live visit and reservation lists with record deletion
+- live visit and reservation lists; visit deletion includes a recovery bin
+- tab-specific visit/reservation CSV preview and import; visit records also
+  support deduplication, recovery, and round-trip backup
 - total visits, total reservations, configured activity count, and configured
   facility count
 - combined CSV export
@@ -29,19 +32,26 @@ All project-specific values belong in this call—not in the framework files.
 <link rel="stylesheet" href="admin-tool/admin.css">
 <button id="admin-toggle-btn">Admin</button>
 <div id="admin-root"></div>
+<script src="admin-tool/visit-import.js"></script>
 <script src="admin-tool/admin.js"></script>
 <script>
   AdminTool.init({
     firebase: { /* Firebase Web configuration */ },
     auth: { adminEmail: "admin@example.com" },
     branding: { title: "Example administrator" },
-    collections: { visits: "visits", reservations: "reservations" },
+    collections: { visits: "visits", reservations: "reservations", trash: "visitTrash" },
     labels: { youthcutActivity: "Photo booth", arFacility: "AR sports" },
     entryButtonId: "admin-toggle-btn",
     exportFileName: "example-admin-export"
   });
 </script>
 ```
+
+The visit importer reads only rows whose `구분` value is `방문등록`; the
+reservation importer reads only `시설예약` rows. Each preview reports and
+excludes the other record type. Reservation rows are restored as
+`{ facility, timeSlot, dateKey, members, createdAt }`, and an existing matching
+reservation or occupied slot is never overwritten.
 
 `firebase` and `auth.adminEmail` are required. The tool uses a named Firebase
 app (`admin-tool`), so it can coexist with a public site that already uses the
