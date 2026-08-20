@@ -2,8 +2,9 @@
 import { notify } from "./notification.js";
 import { waitForAuth } from "./auth.js";
 import { db } from "./firebase.js";
-import { createAgeSelect, getKoreanNameError, isValidKoreanName } from "./utils.js";
-import { collection, addDoc, doc, onSnapshot } from "https://www.gstatic.com/firebasejs/12.15.0/firebase-firestore.js";
+import { getFirestoreErrorMessage, logFirestoreError } from "./firestore-errors.js";
+import { createAgeSelect, createVisitPayload, getKoreanNameError, isValidKoreanName } from "./utils.js";
+import { collection, addDoc, doc, getDoc } from "https://www.gstatic.com/firebasejs/12.15.0/firebase-firestore.js";
 
 let visits = [];
 let visitors = [{ name: "", age: "", gender: "남성" }];
@@ -15,6 +16,9 @@ const addVisitorBtn = document.getElementById("add-checkin-visitor-btn");
 const removeVisitorBtn = document.getElementById("remove-checkin-visitor-btn");
 const visitorCountEl = document.getElementById("checkin-visitor-count");
 const activitiesGrid = document.getElementById("activities-grid");
+let initialized = false;
+let checkInPending = false;
+let activitySettingsPromise = null;
 
 function renderActivityCards(items) {
   if (!Array.isArray(items) || items.length === 0 || items.length > 12) return;
@@ -96,17 +100,34 @@ function resetFormUI() {
 
 async function handleCheckIn(event) {
   event.preventDefault();
+  if (checkInPending) return;
   const invalid = visitors.find((visitor) => !isValidKoreanName(visitor.name));
   if (invalid) { notify(getKoreanNameError(invalid.name)); return; }
   if (visitors.some((visitor) => !visitor.age)) { notify("나이를 선택해주세요."); return; }
   if (!activities.length) { notify("활동을 하나 이상 선택해주세요!"); return; }
-  if (!(await waitForAuth())) { notify("인증 준비에 실패했습니다. 잠시 후 다시 시도해주세요."); return; }
-  const now = new Date();
-  const timestamp = `${now.getFullYear()}. ${now.getMonth() + 1}. ${now.getDate()}. ${now.toLocaleTimeString()}`;
+  const submitButton = checkinForm.querySelector('[type="submit"]');
+  checkInPending = true;
+  submitButton.disabled = true;
+  submitButton.setAttribute("aria-busy", "true");
   try {
-    await Promise.all(visitors.map((visitor) => addDoc(collection(db, "visits"), { ...visitor, activities: [...activities], timestamp, createdAt: now.toISOString() })));
+    if (!(await waitForAuth())) {
+      notify("인증 준비에 실패했습니다. 잠시 후 다시 시도해주세요.");
+      return;
+    }
+    const now = new Date();
+    await Promise.all(visitors.map((visitor) => addDoc(
+      collection(db, "visits"),
+      createVisitPayload(visitor, activities, now),
+    )));
     resetFormUI(); notify("입장이 완료되었습니다!");
-  } catch (error) { console.error("Check-in error:", error); notify("방문 등록 중 오류가 발생했습니다."); }
+  } catch (error) {
+    logFirestoreError("check-in write", error);
+    notify(getFirestoreErrorMessage(error, "방문 등록"));
+  } finally {
+    checkInPending = false;
+    submitButton.disabled = false;
+    submitButton.removeAttribute("aria-busy");
+  }
 }
 
 function wireForm() {
@@ -124,29 +145,26 @@ function wireForm() {
   });
 }
 
-function subscribeToVisits() {
-  onSnapshot(collection(db, "visits"), (snapshot) => {
-    visits = snapshot.docs
-      .map((doc) => ({ id: doc.id, ...doc.data() }))
-      .sort((a, b) => new Date(b.createdAt || 0) - new Date(a.createdAt || 0));
-    notifyChange();
-  }, (error) => {
-    console.error("Error fetching visits:", error);
-    notify("방문 내역을 불러오지 못했습니다.");
-  });
-}
-function subscribeToActivitySettings() {
-  onSnapshot(doc(db, "siteSettings", "activities"), (snapshot) => {
-    if (snapshot.exists()) renderActivityCards(snapshot.data().items);
-  }, (error) => {
-    // The default SVG cards remain usable when optional settings cannot load.
-    console.warn("Activity settings could not be loaded:", error);
-  });
+async function loadActivitySettings() {
+  if (activitySettingsPromise) return activitySettingsPromise;
+  activitySettingsPromise = (async () => {
+    if (!(await waitForAuth())) return;
+    try {
+      const snapshot = await getDoc(doc(db, "siteSettings", "activities"));
+      if (snapshot.exists()) renderActivityCards(snapshot.data().items);
+    } catch (error) {
+      // Optional settings use the unchanged built-in cards when unavailable.
+      logFirestoreError("activity settings read", error);
+    }
+  })();
+  return activitySettingsPromise;
 }
 
 export function initVisit() {
+  if (initialized) return;
+  initialized = true;
   wireForm();
   renderVisitors();
-  subscribeToVisits();
-  subscribeToActivitySettings();
+  // This is the only check-in screen read: one optional settings document.
+  void loadActivitySettings();
 }

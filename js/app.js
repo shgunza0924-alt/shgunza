@@ -10,14 +10,19 @@ function logModuleError(name, error) {
 document.addEventListener("DOMContentLoaded", async () => {
   initUI();
 
-  const [
-    visitModule,
-    reservationModule,
-    authModule,
-  ] = await Promise.allSettled([
+  // Start authentication before feature modules are allowed to issue any
+  // Firestore reads. Feature modules still render their local form UI at once.
+  const authModule = await import("./auth.js").catch((error) => {
+    logModuleError("auth", error);
+    return null;
+  });
+  if (authModule) {
+    authModule.initFirebaseAuth().catch((error) => logModuleError("auth", error));
+  }
+
+  const [visitModule, reservationModule] = await Promise.allSettled([
     import("./visit.js"),
     import("./reservation.js"),
-    import("./auth.js"),
   ]);
 
   if (visitModule.status === "fulfilled") {
@@ -32,9 +37,4 @@ document.addEventListener("DOMContentLoaded", async () => {
     logModuleError("reservation", reservationModule.reason);
   }
 
-  if (authModule.status === "fulfilled") {
-    authModule.value.initFirebaseAuth();
-  } else {
-    logModuleError("auth", authModule.reason);
-  }
 });

@@ -9,6 +9,26 @@ export function getDateKey(d) {
   return `${yyyy}-${mm}-${dd}`;
 }
 
+// Centralized payload builders make the legacy Firestore field contract
+// explicit and testable without changing the public forms.
+export function createVisitPayload(visitor, activities, now) {
+  return {
+    ...visitor,
+    activities: [...activities],
+    timestamp: `${now.getFullYear()}. ${now.getMonth() + 1}. ${now.getDate()}. ${now.toLocaleTimeString()}`,
+    createdAt: now.toISOString(),
+  };
+}
+
+export function createReservationPayload(resData, members, now) {
+  return {
+    ...resData,
+    members: members.map((member) => ({ ...member })),
+    dateKey: getDateKey(now),
+    createdAt: now.toISOString(),
+  };
+}
+
 // CSV escape
 export function csvEscape(value) {
   const s = String(value ?? "");

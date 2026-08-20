@@ -1,4 +1,9 @@
 {
+  "scripts": {
+    "test": "node --test tests/*.test.cjs",
+    "verify": "node scripts/verify-project.cjs",
+    "check": "npm test && npm run verify"
+  },
   "dependencies": {
     "firebase": "^12.15.0"
   }

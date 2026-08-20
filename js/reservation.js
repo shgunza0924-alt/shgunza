@@ -10,19 +10,27 @@ import {
   getPmSlots,
   isResFormValid,
   createAgeSelect,
+  createReservationPayload,
   getKoreanNameError,
   isValidKoreanName,
 } from "./utils.js";
 import { showEditBookingModal, hideEditBookingModal } from "./modal.js";
 import { switchResView } from "./ui.js";
 import { db } from "./firebase.js";
+import { getFirestoreErrorMessage, logFirestoreError } from "./firestore-errors.js";
 import { 
   collection, 
   addDoc, 
   doc, 
   updateDoc, 
   deleteDoc, 
-  onSnapshot 
+  getDoc,
+  getDocs,
+  query,
+  where,
+  orderBy,
+  startAfter,
+  limit,
 } from "https://www.gstatic.com/firebasejs/12.15.0/firebase-firestore.js";
 
 const DEFAULT_BOOKING_SETTINGS = {
@@ -47,6 +55,16 @@ let pmSlots = [];
 
 let reservations = [];
 const changeListeners = [];
+const RESERVATIONS_CACHE_MS = 60 * 1000;
+const MAX_TODAY_RESERVATIONS = 100;
+const MAX_MY_BOOKINGS = 50;
+let reservationsLoadedDateKey = "";
+let reservationsLoadedAt = 0;
+let reservationsLoadPromise = null;
+let bookingSettingsPromise = null;
+let initialized = false;
+let reservationMutationPending = false;
+const pendingReservationDeletes = new Set();
 
 // local form state
 let resData = { facility: "AR 스포츠", timeSlot: "" };
@@ -94,6 +112,13 @@ export function onReservationsChange(callback) {
 
 function notifyChange() {
   changeListeners.forEach((cb) => cb(reservations));
+}
+
+function setPending(button, pending) {
+  if (!button) return;
+  button.disabled = !!pending;
+  if (pending) button.setAttribute("aria-busy", "true");
+  else button.removeAttribute("aria-busy");
 }
 
 function normalizeBookingSettings(value = {}) {
@@ -324,28 +349,36 @@ function renderSubmitButtonState() {
 // New reservation submit
 // ===================================================================
 async function handleReservation() {
+  if (reservationMutationPending) return;
   if (!isResFormValid(resData, resMembers)) {
     const invalid = resMembers.find((member) => !isValidKoreanName(member.name));
     notify(invalid ? getKoreanNameError(invalid.name) : "시간과 이용자 정보를 모두 입력해주세요.");
     return;
   }
 
-  if (!(await waitForAuth())) {
-    notify("인증 준비에 실패했습니다. 잠시 후 다시 시도해주세요.");
-    return;
-  }
-
-  const now = new Date();
-  const dateKey = getDateKey(now);
-  const newRes = {
-    ...resData,
-    members: resMembers.map((member) => ({ ...member })),
-    dateKey,
-    createdAt: now.toISOString(),
-  };
-
+  reservationMutationPending = true;
+  setPending(reservationSubmitBtn, true);
   try {
-    await addDoc(collection(db, "reservations"), newRes);
+    if (!(await waitForAuth())) {
+      notify("인증 준비에 실패했습니다. 잠시 후 다시 시도해주세요.");
+      return;
+    }
+    // Revalidate the small, date-scoped availability set immediately before
+    // writing so a stale page never relies on an all-collection listener.
+    if (!(await loadTodayReservations({ force: true, reportError: true }))) return;
+    if (isSlotBooked(resData.timeSlot)) {
+      resData = { ...resData, timeSlot: "" };
+      renderTimeSlots();
+      notify("방금 다른 예약이 등록되었습니다. 시간을 다시 선택해주세요.");
+      return;
+    }
+
+    const now = new Date();
+    const newRes = createReservationPayload(resData, resMembers, now);
+    const reference = await addDoc(collection(db, "reservations"), newRes);
+    reservations = [{ id: reference.id, ...newRes }, ...reservations];
+    reservationsLoadedAt = Date.now();
+    notifyChange();
     resData = { ...resData, timeSlot: "" };
     resMembers = [{ name: "", age: "", gender: "남성" }];
     renderTimeSlots();
@@ -354,15 +387,19 @@ async function handleReservation() {
     notify("예약이 완료되었습니다!");
     switchResView("new");
   } catch (error) {
-    console.error("Reservation error:", error);
-    notify("예약 처리 중 오류가 발생했습니다.");
+    logFirestoreError("reservation write", error);
+    notify(getFirestoreErrorMessage(error, "예약 처리"));
+  } finally {
+    reservationMutationPending = false;
+    renderSubmitButtonState();
   }
 }
 
 // ===================================================================
 // My bookings: search
 // ===================================================================
-function findMyBookings() {
+async function findMyBookings() {
+  if (findBookingsBtn.disabled) return;
   searchQuery.name = searchNameInput.value;
   searchQuery.age = searchAgeInput.value;
 
@@ -374,16 +411,52 @@ function findMyBookings() {
     notify("이름과 나이를 입력해주세요.");
     return;
   }
-  
-  myBookings = reservations.filter((r) =>
-    (r.members || []).some(
-      (m) => m.name === searchQuery.name && m.age === searchQuery.age
-    )
-  );
-  
-  renderMyBookings();
-  
-  if (myBookings.length === 0) notify("조회된 예약이 없습니다.");
+
+  setPending(findBookingsBtn, true);
+  try {
+    if (!(await waitForAuth())) {
+      notify("인증 준비에 실패했습니다. 잠시 후 다시 시도해주세요.");
+      return;
+    }
+    // Firestore can match the existing member-object schema exactly. Querying
+    // both allowed gender values keeps the saved shape unchanged and avoids a
+    // full reservations collection read.
+    const memberKeys = ["남성", "여성"].map((gender) => ({
+      name: searchQuery.name,
+      age: searchQuery.age,
+      gender,
+    }));
+    // This is an explicit, exact-match user search. Walk only that indexed
+    // result set in bounded pages so older matching bookings remain editable.
+    const matchingDocs = [];
+    let cursor = null;
+    do {
+      const constraints = [
+        where("members", "array-contains-any", memberKeys),
+        orderBy("createdAt", "desc"),
+      ];
+      if (cursor) constraints.push(startAfter(cursor));
+      constraints.push(limit(MAX_MY_BOOKINGS));
+      const snapshot = await getDocs(query(
+        collection(db, "reservations"),
+        ...constraints,
+      ));
+      matchingDocs.push(...snapshot.docs);
+      cursor = snapshot.docs.length === MAX_MY_BOOKINGS
+        ? snapshot.docs[snapshot.docs.length - 1]
+        : null;
+    } while (cursor);
+    myBookings = matchingDocs.map((item) => ({ id: item.id, ...item.data() }));
+    renderMyBookings();
+    if (myBookings.length === 0) notify("조회된 예약이 없습니다.");
+  } catch (error) {
+    myBookings = [];
+    renderMyBookings();
+    logFirestoreError("my bookings read", error);
+    notify(getFirestoreErrorMessage(error, "예약 조회"));
+  } finally {
+    setPending(findBookingsBtn, false);
+  }
 }
 
 function renderMyBookings() {
@@ -519,85 +592,152 @@ async function handleUpdateBooking() {
     return;
   }
 
+  if (editBookingSaveBtn.disabled) return;
+  setPending(editBookingSaveBtn, true);
   try {
+    if (!(await waitForAuth())) {
+      notify("인증 준비에 실패했습니다. 잠시 후 다시 시도해주세요.");
+      return;
+    }
     const docRef = doc(db, "reservations", editingBooking.id);
     await updateDoc(docRef, { members: editingBooking.members });
-    
+    reservations = reservations.map((item) => item.id === editingBooking.id
+      ? { ...item, members: editingBooking.members.map((member) => ({ ...member })) }
+      : item);
+    myBookings = myBookings.map((item) => item.id === editingBooking.id
+      ? { ...item, members: editingBooking.members.map((member) => ({ ...member })) }
+      : item);
+    notifyChange();
     editingBooking = null;
     hideEditBookingModal();
+    renderMyBookings();
     notify("수정되었습니다.");
   } catch (error) {
-    console.error("Update error:", error);
-    notify("예약 수정 중 오류가 발생했습니다.");
+    logFirestoreError("reservation update", error);
+    notify(getFirestoreErrorMessage(error, "예약 수정"));
+  } finally {
+    setPending(editBookingSaveBtn, false);
   }
 }
 
 async function handleCancelBooking(id) {
+  if (pendingReservationDeletes.has(id)) return;
   if (!window.confirm("예약을 취소하시겠습니까?")) return;
 
+  pendingReservationDeletes.add(id);
   try {
+    if (!(await waitForAuth())) {
+      notify("인증 준비에 실패했습니다. 잠시 후 다시 시도해주세요.");
+      return;
+    }
     const docRef = doc(db, "reservations", id);
     await deleteDoc(docRef);
+    reservations = reservations.filter((item) => item.id !== id);
+    myBookings = myBookings.filter((item) => item.id !== id);
+    renderTimeSlots();
+    renderMyBookings();
+    notifyChange();
     notify("취소되었습니다.");
   } catch (error) {
-    console.error("Cancel error:", error);
-    notify("예약 취소 중 오류가 발생했습니다.");
+    logFirestoreError("reservation delete", error);
+    notify(getFirestoreErrorMessage(error, "예약 취소"));
+  } finally {
+    pendingReservationDeletes.delete(id);
   }
 }
 
 // ===================================================================
-// Firestore live subscription
+// Firestore reads: authenticated, bounded, one-shot, and de-duplicated
 // ===================================================================
-function subscribeToReservations() {
-  const resRef = collection(db, "reservations");
-
-  onSnapshot(resRef, (snapshot) => {
-    const data = snapshot.docs.map((d) => ({ id: d.id, ...d.data() }));
-    data.sort((a, b) => new Date(b.createdAt) - new Date(a.createdAt));
-    reservations = data;
-    
-    renderTimeSlots();
-    
-    // Maintain My Bookings UI Sync: If search is active, re-filter the fresh dataset.
-    if (searchQuery.name && searchQuery.age) {
-      myBookings = reservations.filter((r) =>
-        (r.members || []).some(
-          (m) => m.name === searchQuery.name && m.age === searchQuery.age
-        )
-      );
-      renderMyBookings();
+async function loadTodayReservations({ force = false, reportError = false } = {}) {
+  const dateKey = getDateKey(new Date());
+  const cacheFresh = reservationsLoadedDateKey === dateKey
+    && Date.now() - reservationsLoadedAt < RESERVATIONS_CACHE_MS;
+  if (!force && cacheFresh) return true;
+  const activeRequest = reservationsLoadPromise;
+  if (activeRequest) {
+    if (!force) return activeRequest;
+    await activeRequest;
+    // Another forced caller may already have started the required fresh read.
+    if (reservationsLoadPromise && reservationsLoadPromise !== activeRequest) {
+      return reservationsLoadPromise;
     }
-    
-    notifyChange();
-  }, (error) => {
-    console.error("Error fetching reservations:", error);
-    myBookings = [];
-    myBookingsResultsEl.innerHTML = '<p class="empty-state" role="alert">예약 정보를 불러오지 못했습니다. 잠시 후 다시 시도해주세요.</p>';
-  });
+    if (reservationsLoadPromise === activeRequest) reservationsLoadPromise = null;
+  }
+
+  const request = (async () => {
+    if (!(await waitForAuth())) {
+      if (reportError) notify("인증 준비에 실패했습니다. 잠시 후 다시 시도해주세요.");
+      return false;
+    }
+    try {
+      const snapshot = await getDocs(query(
+        collection(db, "reservations"),
+        where("dateKey", "==", dateKey),
+        limit(MAX_TODAY_RESERVATIONS),
+      ));
+      reservations = snapshot.docs
+        .map((item) => ({ id: item.id, ...item.data() }))
+        .sort((a, b) => new Date(b.createdAt || 0) - new Date(a.createdAt || 0));
+      reservationsLoadedDateKey = dateKey;
+      reservationsLoadedAt = Date.now();
+      renderTimeSlots();
+      notifyChange();
+      return true;
+    } catch (error) {
+      logFirestoreError("today reservations read", error);
+      if (reportError) notify(getFirestoreErrorMessage(error, "예약 현황 조회"));
+      return false;
+    }
+  })();
+  reservationsLoadPromise = request;
+
+  try {
+    return await request;
+  } finally {
+    if (reservationsLoadPromise === request) reservationsLoadPromise = null;
+  }
 }
 
-function subscribeToBookingSettings() {
-  onSnapshot(doc(db, "siteSettings", "bookingSettings"), (snapshot) => {
-    bookingSettings = normalizeBookingSettings(snapshot.exists() ? snapshot.data() : {});
-    bookingSettingsLoaded = true;
-    rebuildTimeSlots();
-    if (pendingFacilityNotice) {
-      const facility = pendingFacilityNotice;
-      pendingFacilityNotice = null;
-      const reservationPanel = document.getElementById("tab-reservations");
-      if (reservationPanel && !reservationPanel.classList.contains("hidden")) showFacilityNotice(facility);
+async function loadBookingSettings() {
+  if (bookingSettingsPromise) return bookingSettingsPromise;
+  bookingSettingsPromise = (async () => {
+    if (!(await waitForAuth())) return false;
+    try {
+      const snapshot = await getDoc(doc(db, "siteSettings", "bookingSettings"));
+      bookingSettings = normalizeBookingSettings(snapshot.exists() ? snapshot.data() : {});
+      return true;
+    } catch (error) {
+      // Defaults keep the unchanged booking screen usable if optional settings fail.
+      logFirestoreError("booking settings read", error);
+      return false;
+    } finally {
+      bookingSettingsLoaded = true;
+      rebuildTimeSlots();
+      if (pendingFacilityNotice) {
+        const facility = pendingFacilityNotice;
+        pendingFacilityNotice = null;
+        const reservationPanel = document.getElementById("tab-reservations");
+        if (reservationPanel && !reservationPanel.classList.contains("hidden")) showFacilityNotice(facility);
+      }
     }
-  }, (error) => {
-    console.warn("Booking settings could not be loaded:", error);
-    bookingSettingsLoaded = true;
-    rebuildTimeSlots();
-  });
+  })();
+  return bookingSettingsPromise;
+}
+
+async function prepareReservationScreen() {
+  await Promise.all([
+    loadBookingSettings(),
+    loadTodayReservations({ reportError: true }),
+  ]);
 }
 
 // ===================================================================
 // Init
 // ===================================================================
 export function initReservation() {
+  if (initialized) return;
+  initialized = true;
   wireFacilitySelect();
   rebuildTimeSlots();
   renderMembersList();
@@ -636,8 +776,6 @@ export function initReservation() {
   });
   reservationsTabBtn.addEventListener("click", () => {
     window.setTimeout(() => showFacilityNotice(resData.facility), 0);
+    void prepareReservationScreen();
   });
-
-  subscribeToReservations();
-  subscribeToBookingSettings();
 }

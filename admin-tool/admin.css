@@ -883,3 +883,323 @@
   #admin-root *::before,
   #admin-root *::after { scroll-behavior: auto !important; transition-duration: .01ms !important; animation-duration: .01ms !important; animation-iteration-count: 1 !important; }
 }
+
+/* Auth-gated, paged administrator workspace. All rules stay inside admin-root. */
+#admin-root .at-fs-dashboard.at-ref-dashboard {
+  --at-shell-bg: #f3f6fb;
+  --at-shell-surface: #fff;
+  --at-shell-sidebar: #172033;
+  --at-shell-sidebar-muted: #9aa8bb;
+  --at-shell-border: #dce5ef;
+  --at-shell-text: #172033;
+  --at-shell-muted: #66768a;
+  --at-shell-blue: #2563eb;
+  --at-shell-indigo: #4f46e5;
+  padding: 0;
+  background: var(--at-shell-bg);
+  color: var(--at-shell-text);
+}
+
+#admin-root .at-admin-topbar {
+  position: sticky;
+  top: 0;
+  z-index: 60;
+  min-height: 84px;
+  height: auto;
+  padding: 12px 24px;
+  border-bottom: 1px solid var(--at-shell-border);
+  background: rgba(255, 255, 255, .98);
+  box-shadow: 0 4px 18px rgba(15, 23, 42, .055);
+}
+
+#admin-root .at-admin-topbar .at-ref-brand {
+  display: flex;
+  min-width: 0;
+  align-items: center;
+  gap: 14px;
+}
+
+#admin-root .at-admin-topbar .at-ref-brand img {
+  width: auto;
+  max-width: 168px;
+  max-height: 54px;
+}
+
+#admin-root .at-admin-brand-copy { display: grid; min-width: 0; gap: 2px; }
+#admin-root .at-admin-brand-copy strong { overflow: hidden; color: var(--at-shell-text); font-size: 15px; text-overflow: ellipsis; white-space: nowrap; }
+#admin-root .at-admin-brand-copy span { color: var(--at-shell-muted); font-size: 11px; font-weight: 750; }
+
+#admin-root .at-admin-workspace {
+  display: grid;
+  min-height: calc(100vh - 84px);
+  grid-template-columns: 248px minmax(0, 1fr);
+}
+
+#admin-root .at-admin-sidebar.at-ref-tabs {
+  position: sticky;
+  top: 84px;
+  z-index: 35;
+  display: flex;
+  height: calc(100vh - 84px);
+  min-height: 0;
+  padding: 24px 14px;
+  flex-direction: column;
+  align-self: start;
+  gap: 8px;
+  overflow-y: auto;
+  border: 0;
+  background: var(--at-shell-sidebar);
+  box-shadow: 8px 0 24px rgba(15, 23, 42, .06);
+}
+
+#admin-root .at-admin-sidebar.at-ref-tabs button {
+  display: grid;
+  min-height: 50px;
+  padding: 11px 14px;
+  grid-template-columns: 28px minmax(0, 1fr);
+  align-items: center;
+  gap: 9px;
+  border: 1px solid transparent;
+  border-radius: 13px;
+  background: transparent;
+  box-shadow: none;
+  color: var(--at-shell-sidebar-muted);
+  font-size: 14px;
+  font-weight: 800;
+  line-height: 1.25;
+  text-align: left;
+}
+
+#admin-root .at-admin-sidebar.at-ref-tabs button > span:first-child {
+  display: grid;
+  width: 28px;
+  height: 28px;
+  place-items: center;
+  border-radius: 8px;
+  background: rgba(255, 255, 255, .07);
+  color: #cbd5e1;
+}
+
+#admin-root .at-admin-sidebar.at-ref-tabs button:hover { background: rgba(255, 255, 255, .06); color: #fff; }
+#admin-root .at-admin-sidebar.at-ref-tabs button.is-active,
+#admin-root .at-admin-sidebar.at-ref-tabs button[data-at-view="reservations"].is-active,
+#admin-root .at-admin-sidebar.at-ref-tabs button[data-at-view="activities"].is-active,
+#admin-root .at-admin-sidebar.at-ref-tabs button[data-at-view="booking-settings"].is-active {
+  border-color: rgba(147, 197, 253, .2);
+  background: linear-gradient(135deg, rgba(37, 99, 235, .3), rgba(79, 70, 229, .22));
+  box-shadow: inset 3px 0 #60a5fa;
+  color: #fff;
+}
+
+#admin-root .at-admin-sidebar.at-ref-tabs button.is-active > span:first-child { background: #2563eb; color: #fff; }
+
+#admin-root .at-admin-content.at-ref-content {
+  width: 100%;
+  max-width: 1440px;
+  margin: 0 auto;
+  padding: 30px clamp(20px, 3vw, 44px) 64px;
+}
+
+#admin-root .at-page-heading,
+#admin-root .at-section-heading,
+#admin-root .at-log-header {
+  display: flex;
+  align-items: flex-end;
+  justify-content: space-between;
+  gap: 18px;
+}
+
+#admin-root .at-page-heading { margin-bottom: 22px; }
+#admin-root .at-page-heading h1 { margin: 3px 0 5px; color: var(--at-shell-text); font-size: clamp(26px, 3vw, 36px); letter-spacing: -.035em; }
+#admin-root .at-page-heading p,
+#admin-root .at-log-header p { margin: 0; color: var(--at-shell-muted); font-size: 13px; }
+#admin-root .at-page-eyebrow,
+#admin-root .at-section-heading span { color: var(--at-shell-blue); font-size: 11px; font-weight: 900; letter-spacing: .12em; }
+#admin-root .at-section-heading h2 { margin: 5px 0 0; color: var(--at-shell-text); font-size: 22px; }
+
+#admin-root .at-refresh-btn,
+#admin-root .at-state-retry,
+#admin-root .at-modal-error button {
+  min-height: 42px;
+  padding: 10px 15px;
+  border: 1px solid #bfdbfe;
+  border-radius: 11px;
+  background: #eff6ff;
+  color: #1d4ed8;
+  font: inherit;
+  font-size: 13px;
+  font-weight: 850;
+  cursor: pointer;
+}
+
+#admin-root .at-overview-grid { gap: 13px; margin-bottom: 22px; }
+#admin-root .at-overview-card { border-color: var(--at-shell-border); border-radius: 16px; box-shadow: 0 8px 24px rgba(15, 23, 42, .045); }
+
+#admin-root .at-inline-warning {
+  margin: -8px 0 20px;
+  padding: 10px 13px;
+  border: 1px solid #fed7aa;
+  border-radius: 10px;
+  background: #fff7ed;
+  color: #9a3412;
+  font-size: 12px;
+  font-weight: 750;
+}
+
+#admin-root .at-ref-filter {
+  display: grid;
+  margin: 0 0 26px;
+  padding: 20px;
+  grid-template-columns: minmax(160px, .35fr) minmax(0, 1fr);
+  align-items: start;
+  gap: 18px;
+  border: 1px solid var(--at-shell-border);
+  border-radius: 18px;
+  background: var(--at-shell-surface);
+  box-shadow: 0 8px 24px rgba(15, 23, 42, .045);
+}
+
+#admin-root .at-admin-brand-copy {
+  display: flex;
+  align-items: center;
+  transform: translateY(5px);
+}
+
+#admin-root .at-filter-copy { display: grid; gap: 5px; }
+#admin-root .at-filter-copy strong { color: var(--at-shell-text); font-size: 16px; }
+#admin-root .at-filter-copy span { color: var(--at-shell-muted); font-size: 12px; line-height: 1.45; }
+#admin-root .at-ref-filter form { display: flex; min-width: 0; flex-wrap: wrap; align-items: end; justify-content: flex-end; gap: 10px; }
+#admin-root .at-filter-modes { display: flex; align-items: center; gap: 6px; }
+#admin-root .at-ref-filter button { min-height: 40px; padding: 9px 13px; border-radius: 10px; font-size: 12px; }
+#admin-root .at-ref-filter button.is-current { background: #172033; border-color: #172033; color: #fff; }
+#admin-root .at-ref-month-range,
+#admin-root .at-ref-date-range { display: flex; min-width: 0; align-items: center; gap: 6px; }
+#admin-root .at-ref-month-range select,
+#admin-root .at-ref-date-range input,
+#admin-root .at-record-search input,
+#admin-root .at-record-search select {
+  min-height: 40px;
+  padding: 8px 11px;
+  border: 1px solid #cbd5e1;
+  border-radius: 10px;
+  background: #fff;
+  color: #334155;
+  font: inherit;
+  font-size: 13px;
+}
+
+#admin-root .at-record-search { display: grid; min-width: 190px; gap: 5px; color: #64748b; font-size: 11px; font-weight: 800; }
+#admin-root .at-record-search input { width: 190px; }
+#admin-root .at-record-search select { width: 170px; }
+#admin-root .at-query-actions { display: flex; gap: 6px; }
+#admin-root .at-query-actions button.is-primary { border-color: var(--at-shell-blue); background: var(--at-shell-blue); color: #fff; }
+
+#admin-root .at-ref-section {
+  padding: 22px;
+  border: 1px solid var(--at-shell-border);
+  border-radius: 20px;
+  background: var(--at-shell-surface);
+  box-shadow: 0 10px 28px rgba(15, 23, 42, .05);
+}
+
+#admin-root .at-ref-section .at-stats-container { margin-top: 16px; box-shadow: none; }
+#admin-root .at-log-header { margin-top: 30px; }
+#admin-root .at-log-header > div:first-child { display: grid; gap: 4px; }
+#admin-root .at-log-title { margin: 0; }
+#admin-root .at-log-actions { justify-content: flex-end; }
+#admin-root .at-log-table-wrap { margin-top: 14px; border-color: var(--at-shell-border); box-shadow: none; }
+#admin-root .at-log-table { min-width: 900px; }
+#admin-root .at-log-thead { background: #f4f7fb; color: #526176; }
+#admin-root .at-log-thead th { padding: 12px; }
+#admin-root .at-log-row td { padding: 12px; }
+#admin-root .at-fs-empty { padding: 48px 20px !important; }
+#admin-root .at-fs-empty strong,
+#admin-root .at-fs-empty span { display: block; }
+#admin-root .at-fs-empty strong { color: #475569; font-size: 15px; }
+#admin-root .at-fs-empty span { margin-top: 6px; color: #94a3b8; font-size: 12px; font-weight: 600; }
+
+#admin-root .at-visit-pager {
+  min-height: 64px;
+  padding-top: 20px;
+  border-top: 1px solid #edf2f7;
+}
+#admin-root .at-visit-pager span { min-width: 110px; text-align: center; }
+#admin-root .at-visit-pager span strong { color: var(--at-shell-blue); }
+#admin-root .at-visit-pager button { min-width: 92px; min-height: 40px; border-color: var(--at-shell-border); }
+
+#admin-root .at-data-state-card { min-height: 330px; border-radius: 20px; }
+#admin-root .at-data-state-card .at-state-retry { margin-top: 12px; }
+#admin-root .at-modal-loading,
+#admin-root .at-modal-error { display: grid; min-height: 180px; place-items: center; align-content: center; gap: 8px; color: #475569; text-align: center; }
+#admin-root .at-modal-error { color: #b91c1c; }
+#admin-root .at-modal-error p { margin: 0; color: #64748b; }
+
+@media (max-width: 1020px) {
+  #admin-root .at-admin-workspace { grid-template-columns: 210px minmax(0, 1fr); }
+  #admin-root .at-admin-sidebar.at-ref-tabs button { font-size: 13px; }
+  #admin-root .at-ref-filter { grid-template-columns: 1fr; }
+  #admin-root .at-ref-filter form { justify-content: flex-start; }
+}
+
+@media (max-width: 760px) {
+  #admin-root .at-admin-topbar { min-height: 72px; padding: 9px 12px; }
+  #admin-root .at-admin-topbar .at-ref-brand img { max-width: 132px; max-height: 44px; }
+  #admin-root .at-admin-brand-copy { display: none; }
+  #admin-root .at-admin-workspace { display: block; min-height: calc(100vh - 72px); }
+  #admin-root .at-admin-sidebar.at-ref-tabs {
+    position: sticky;
+    top: 72px;
+    display: flex;
+    width: 100%;
+    height: auto;
+    min-height: 58px;
+    padding: 7px 10px;
+    flex-direction: row;
+    gap: 6px;
+    overflow-x: auto;
+    overflow-y: hidden;
+    background: #172033;
+  }
+  #admin-root .at-admin-sidebar.at-ref-tabs button {
+    min-width: 132px;
+    min-height: 44px;
+    padding: 8px 10px;
+    flex: 0 0 auto;
+    grid-template-columns: 24px auto;
+    border-radius: 10px;
+    font-size: 12px;
+  }
+  #admin-root .at-admin-sidebar.at-ref-tabs button > span:first-child { width: 24px; height: 24px; }
+  #admin-root .at-admin-sidebar.at-ref-tabs button.is-active,
+  #admin-root .at-admin-sidebar.at-ref-tabs button[data-at-view="reservations"].is-active,
+  #admin-root .at-admin-sidebar.at-ref-tabs button[data-at-view="activities"].is-active,
+  #admin-root .at-admin-sidebar.at-ref-tabs button[data-at-view="booking-settings"].is-active { box-shadow: inset 0 -3px #60a5fa; }
+  #admin-root .at-admin-content.at-ref-content { padding: 20px 12px 48px; }
+  #admin-root .at-page-heading,
+  #admin-root .at-log-header { align-items: flex-start; flex-direction: column; }
+  #admin-root .at-overview-grid { grid-template-columns: repeat(2, minmax(0, 1fr)); }
+  #admin-root .at-ref-filter { padding: 16px; }
+  #admin-root .at-ref-filter form,
+  #admin-root .at-ref-month-range,
+  #admin-root .at-ref-date-range,
+  #admin-root .at-filter-modes,
+  #admin-root .at-query-actions { width: 100%; }
+  #admin-root .at-filter-modes button,
+  #admin-root .at-query-actions button { flex: 1; }
+  #admin-root .at-ref-month-range select,
+  #admin-root .at-ref-date-range input { min-width: 0; flex: 1; }
+  #admin-root .at-record-search { width: 100%; }
+  #admin-root .at-record-search input,
+  #admin-root .at-record-search select { width: 100%; }
+  #admin-root .at-ref-section { padding: 18px 12px; }
+  #admin-root .at-log-actions { width: 100%; justify-content: flex-start; }
+  #admin-root .at-log-actions button { flex: 1 1 42%; justify-content: center; }
+}
+
+@media (max-width: 420px) {
+  #admin-root .at-ref-actions #at-ref-date { display: none; }
+  #admin-root .at-overview-grid { grid-template-columns: 1fr; }
+  #admin-root .at-ref-date-range { flex-wrap: wrap; }
+  #admin-root .at-ref-date-range span { display: none; }
+  #admin-root .at-log-actions button { flex-basis: 100%; }
+}

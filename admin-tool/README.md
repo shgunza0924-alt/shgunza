@@ -13,15 +13,25 @@ shapes:
 - `reservations`: `{ facility, timeSlot, dateKey, members, createdAt }`
 - `visitTrash`: `{ originalId, record, deletedAt }` (visit records only)
 
-The dashboard subscribes to both collections in real time and provides:
+The dashboard does not read Firestore until the configured administrator has
+authenticated and opened a data view. It provides:
 
 - email/password administrator authentication
-- live visit and reservation lists; visit deletion includes a recovery bin
+- 25-row, `createdAt`-ordered visit and reservation pages backed by Firestore
+  document cursors, query caching, and explicit refresh
+- server-side date and exact-value filters plus aggregate count queries
+- one-shot, tab-scoped settings reads; visit deletion includes a recovery bin
 - tab-specific visit/reservation CSV preview and import; visit records also
   support deduplication, recovery, and round-trip backup
-- total visits, total reservations, configured activity count, and configured
-  facility count
+- current-page detailed statistics and aggregate matching-record counts
 - combined CSV export
+
+CSV export, backup, and import deduplication intentionally scan matching data
+only after an administrator requests those maintenance actions. Those scans are
+cursor-paged in batches rather than fetched during dashboard initialization.
+
+Queries that combine an exact search with newest-first ordering require the
+indexes declared in the repository's `firestore.indexes.json`.
 
 ## Installation
 
