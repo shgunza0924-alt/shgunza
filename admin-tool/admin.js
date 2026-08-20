@@ -237,8 +237,7 @@
 
     '<div class="at-ref-actions">' +
       '<span id="at-ref-date"></span>' +
-      '<button type="button" id="at-fs-export" title="통합 CSV 다운로드" aria-label="통합 CSV 다운로드">⇩</button>' +
-      '<button type="button" id="at-fs-logout" title="나가기" aria-label="관리자 로그아웃">↪</button>' +
+      '<button type="button" id="at-fs-logout" title="관리자 화면에서 나가기" aria-label="관리자 로그아웃 후 사용자 화면으로 나가기">↪ 관리자 나가기</button>' +
     '</div>' +
   '</header>' +
 
@@ -289,7 +288,6 @@
     document.getElementById("at-fs-cancel").onclick = closeModal;
     document.getElementById("at-fs-login-form").onsubmit = login;
     document.getElementById("at-fs-logout").onclick = logout;
-    document.getElementById("at-fs-export").onclick = function (event) { exportCsv(null, event.currentTarget); };
     document.getElementById("at-csv-close").onclick = closeCsvModal;
     document.getElementById("at-csv-modal").onclick = function (event) { if (event.target === event.currentTarget) closeCsvModal(); };
     root.querySelectorAll("[data-at-view]").forEach(function (button) {
@@ -1002,7 +1000,7 @@
     var title = isAr ? "현재 페이지 시설 이용 통계" : "현재 페이지 이용 목적 및 연령 통계";
     var recordActions = isAr
       ? '<input id="at-reservation-csv-input" type="file" accept=".csv,text/csv" aria-label="시설예약 CSV 파일 선택" hidden><button type="button" class="at-reservation-import-btn" id="at-reservation-import" aria-controls="at-reservation-csv-input">＋ 예약 CSV 불러오기</button>'
-      : '<input id="at-visit-csv-input" type="file" accept=".csv,text/csv" aria-label="방문 기록 CSV 파일 선택" hidden><button type="button" class="at-visit-import-btn" id="at-visit-import" aria-controls="at-visit-csv-input">＋ CSV 불러오기</button><button type="button" class="at-visit-backup-btn" id="at-visit-backup">⇩ 백업 CSV</button><button type="button" class="at-visit-trash-btn" id="at-visit-trash" aria-haspopup="dialog">♻ 복구함</button>';
+      : '<input id="at-visit-csv-input" type="file" accept=".csv,text/csv" aria-label="방문 기록 CSV 파일 선택" hidden><button type="button" class="at-visit-import-btn" id="at-visit-import" aria-controls="at-visit-csv-input">＋ CSV 불러오기</button><button type="button" class="at-visit-backup-btn" id="at-visit-backup">⇩ 백업 CSV</button><button type="button" class="at-visit-trash-btn" id="at-visit-trash" aria-haspopup="dialog">♻ 휴지통</button>';
     content.innerHTML = '<div class="at-page-heading"><div><span class="at-page-eyebrow">ADMIN DATA</span><h1>' + (isAr ? '시설 예약 현황' : '방문 등록 내역') + '</h1><p>필요한 페이지와 집계만 서버에서 조회합니다.</p></div><button type="button" id="at-refresh-list" class="at-refresh-btn"' + (list.loading ? ' disabled aria-busy="true"' : '') + '>↻ 새로고침</button></div>' + overviewCards(records, isAr, list) + (list.countError ? '<p class="at-inline-warning" role="status">' + esc(list.countError) + '</p>' : '') + filterMarkup(type) + '<section class="at-ref-section"><div class="at-section-heading"><div><span>현재 페이지 기준</span><h2>' + (isAr ? '✓' : '▥') + ' ' + title + '</h2></div></div>' + statsTable(records, purposes, isAr, isAr) + '<div class="at-log-header"><div><h2 class="at-log-title">상세 ' + (isAr ? '시설 예약' : '방문') + ' 내역</h2><p>최신순 · 페이지당 ' + PAGE_SIZE + '건</p></div><div class="at-log-actions">' + recordActions + '<button type="button" class="at-excel-btn ' + (isAr ? 'at-indigo-btn' : '') + '" id="at-ref-export" aria-label="현재 조건의 ' + (isAr ? '시설 예약' : '방문 등록') + ' 보고서 CSV 다운로드">⇩ 보고서 CSV</button><span class="at-count-badge ' + (isAr ? 'at-indigo-badge' : 'at-blue-badge') + '">' + records.length + '건</span></div></div><div class="at-log-table-wrap"><table class="at-log-table"><thead class="at-log-thead">' + (isAr ? '<tr><th>예약날짜</th><th>예약시간</th><th>시설</th><th>대표자</th><th>총 인원</th><th>이용자 명단</th><th>관리</th></tr>' : '<tr><th>날짜</th><th>시간</th><th>이름</th><th>성별</th><th>나이</th><th>목적</th><th>관리</th></tr>') + '</thead><tbody id="at-fs-body"></tbody></table></div><div id="at-visit-pager"></div></section>';
     bindListControls(type);
     renderTable(type);
@@ -1121,7 +1119,7 @@
     var button = event.currentTarget;
     if (button.disabled || !requireAdminSession()) return;
     var type = button.dataset.collection === "visits" ? "visits" : "reservations";
-    if (!window.confirm(button.dataset.collection === "visits" ? "이 방문 기록을 복구함으로 이동하시겠습니까?" : "이 기록을 삭제하시겠습니까?")) return;
+    if (!window.confirm(button.dataset.collection === "visits" ? "이 방문 기록을 휴지통으로 이동하시겠습니까?" : "이 기록을 삭제하시겠습니까?")) return;
     setButtonPending(button, true);
     try {
       if (button.dataset.collection === "visits") {
@@ -1132,7 +1130,7 @@
         batch.set(trashRef, { originalId: visit.id, record: record, deletedAt: new Date().toISOString() });
         batch.delete(visitRef);
         await batch.commit();
-        notify("방문 기록을 복구함으로 이동했습니다.", "success");
+        notify("방문 기록을 휴지통으로 이동했습니다.", "success");
       } else {
         await state.api.deleteDoc(state.api.doc(state.db, state.config.collections.reservations, button.dataset.id));
         notify("삭제되었습니다.", "success");
@@ -1511,7 +1509,7 @@
   async function showVisitTrash() {
     if (!requireAdminSession()) return;
     var sessionVersion = state.adminSessionVersion;
-    openCsvModal("방문 기록 복구함", '<div class="at-modal-loading" role="status" aria-busy="true">복구함을 불러오는 중입니다.</div>');
+    openCsvModal("방문 기록 휴지통", '<div class="at-modal-loading" role="status" aria-busy="true">휴지통을 불러오는 중입니다.</div>');
     state.trashStatus = { loading: true, error: "" };
     try {
       var snapshot = await state.api.getDocs(state.api.query(
@@ -1525,10 +1523,10 @@
       renderVisitTrashContent();
     } catch (error) {
       logFirestoreError("visit trash query", error);
-      state.trashStatus = { loading: false, error: firestoreErrorMessage(error, "방문 기록 복구함") };
+      state.trashStatus = { loading: false, error: firestoreErrorMessage(error, "방문 기록 휴지통") };
       var content = document.getElementById("at-csv-content");
       if (content) {
-        content.innerHTML = '<div class="at-modal-error" role="alert"><strong>복구함을 불러오지 못했습니다.</strong><p>' + esc(state.trashStatus.error) + '</p><button type="button" id="at-trash-retry">다시 조회</button></div>';
+        content.innerHTML = '<div class="at-modal-error" role="alert"><strong>휴지통을 불러오지 못했습니다.</strong><p>' + esc(state.trashStatus.error) + '</p><button type="button" id="at-trash-retry">다시 조회</button></div>';
         document.getElementById("at-trash-retry").onclick = showVisitTrash;
       }
     }

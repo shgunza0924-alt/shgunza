@@ -58,7 +58,7 @@ test("runtime-generated public form and result markup stays unchanged", () => {
   const reservation = read("js/reservation.js");
   const protectedSections = [
     [visit, "function renderActivityCards", "export function getVisits", "97be6596e7d437ed32041440f1a3344ab5947397038a3122133a4dbeba3a9e3d"],
-    [visit, "function renderVisitors", "function resetFormUI", "fb9b1e2ce3708453642a2c56c63bf87961a9465266c7c0b0017a405047297147"],
+    [visit, "function renderVisitors", "function resetFormUI", "edcc73fd86b4fac73d05cec2c2c694d3ff34adc23734a93e76c7683e039fc7b7"],
     [reservation, "function renderSlotGroup", "function wireFacilitySelect", "eb9ce189bbaac844d3891f9874554827028df45f0f645249c7cfe0b135348fe3"],
     [reservation, "function renderMembersList", "function renderSubmitButtonState", "7a6542bbc4e66727cf78b7edd10b9720cf916db3c2af9cb8b7e751542a5a03e9"],
     [reservation, "function renderSubmitButtonState", "// ===================================================================\n// New reservation submit", "d96820779d02291eb83b91982ac1ed80cd472cebbccbc7acfc463381489666ec"],

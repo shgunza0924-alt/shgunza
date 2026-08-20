@@ -59,7 +59,7 @@ function renderVisitors() {
   visitors.forEach((visitor, index) => {
     const row = document.createElement("div");
     row.className = "checkin-visitor-row";
-    row.innerHTML = '<div class="field"><label class="field-label">이름 <span class="required">*</span></label><input type="text" class="input input-lg" placeholder="성함을 입력하세요"></div><div class="field"><label class="field-label">나이 <span class="required">*</span></label></div><div class="field"><label class="field-label">성별 <span class="required">*</span></label><div class="toggle-group"><button type="button" class="toggle-btn">남성</button><button type="button" class="toggle-btn">여성</button></div></div>';
+    row.innerHTML = '<div class="field"><label class="field-label">이름 <span class="required">*</span></label><input type="text" class="input input-lg" placeholder="이름을 입력하세요"></div><div class="field"><label class="field-label">나이 <span class="required">*</span></label></div><div class="field"><label class="field-label">성별 <span class="required">*</span></label><div class="toggle-group"><button type="button" class="toggle-btn">남성</button><button type="button" class="toggle-btn">여성</button></div></div>';
     const nameInput = row.querySelector("input");
     nameInput.value = visitor.name;
     nameInput.addEventListener("input", (event) => { visitors[index].name = event.target.value; });
