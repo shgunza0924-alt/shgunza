@@ -36,7 +36,7 @@ test("administrator list uses a bounded cursor query and cached pages", () => {
   assert.match(source, /var PAGE_QUERY_LIMIT = PAGE_SIZE \+ 1/);
 
   const queryBuilder = section(source, "function buildListQuery", "function buildCountQuery");
-  assert.match(queryBuilder, /orderBy\("createdAt", "desc"\)/);
+  assert.match(queryBuilder, /orderBy\(queryOrderField\(type\), "desc"\)/);
   assert.match(queryBuilder, /startAfter\(cursor\)/);
   assert.match(queryBuilder, /limit\(pageLimit \|\| PAGE_QUERY_LIMIT\)/);
 
@@ -57,15 +57,15 @@ test("administrator list uses a bounded cursor query and cached pages", () => {
 test("administrator filters and counts execute on the server", () => {
   const source = read("admin-tool/admin.js");
   const constraints = section(source, "function firestoreWhereConstraints", "function buildListQuery");
-  assert.match(constraints, /where\("createdAt", ">=", range\.start\)/);
-  assert.match(constraints, /where\("createdAt", "<", range\.end\)/);
+  assert.match(constraints, /where\(range\.field, ">=", range\.start\)/);
+  assert.match(constraints, /where\(range\.field, "<", range\.end\)/);
   assert.match(constraints, /where\("name", "==", search\)/);
   assert.match(constraints, /where\("facility", "==", search\)/);
 
   const aggregate = section(source, "async function loadAggregateCount", "function loadListView");
   assertAdminGateBeforeRequest(aggregate, /state\.api\.getCountFromServer\(/);
   assert.doesNotMatch(aggregate, /getDocs\s*\(/);
-  assert.match(section(source, "function buildCountQuery", "function cacheForSignature"), /orderBy\("createdAt", "desc"\)/);
+  assert.match(section(source, "function buildCountQuery", "function cacheForSignature"), /orderBy\(queryOrderField\(type\), "desc"\)/);
   assert.match(aggregate, /safeRender\(type\)/);
 });
 
@@ -129,6 +129,73 @@ test("admin preserves filter drafts during asynchronous renders and rechecks vis
   const commit = section(source, "async function commitVisitChunk", "async function commitReservationChunk");
   assert.match(commit, /runTransaction/);
   assert.match(commit, /transaction\.get\(plan\.ref\)/);
+});
+
+test("administrator opens on the current month and filter mode buttons never query by themselves", () => {
+  const source = read("admin-tool/admin.js");
+  const stateBlock = section(source, "var state = {", "var loginReturnFocus");
+  assert.match(stateBlock, /filter: "month"/);
+  assert.match(stateBlock, /draftFilter: "month"/);
+
+  const filterButtons = section(
+    source,
+    'document.querySelectorAll("#at-query-form [data-filter]")',
+    "queryForm.onsubmit",
+  );
+  assert.match(filterButtons, /state\.draftFilter = button\.dataset\.filter/);
+  assert.doesNotMatch(filterButtons, /loadListView\s*\(/);
+  assert.doesNotMatch(filterButtons, /applyListQueryFromControls\s*\(/);
+
+  const applyQuery = section(source, "function applyListQueryFromControls", "function bindListControls");
+  assert.match(applyQuery, /state\.filter = state\.draftFilter/);
+  assert.match(applyQuery, /loadListView\(type, \{ pageIndex: 0 \}\)/);
+});
+
+test("administrator statistics headings use scalable inline icons instead of placeholder glyphs", () => {
+  const source = read("admin-tool/admin.js");
+  const icons = section(source, "function filterIconMarkup", "function dashboardSummaryMarkup");
+  assert.match(icons, /class="at-filter-icon"/);
+  assert.match(icons, /class="at-section-icon"/);
+  assert.match(icons, /<svg viewBox="0 0 24 24"/);
+  assert.doesNotMatch(source, /at-filter-icon" aria-hidden="true">▽/);
+  assert.doesNotMatch(source, /at-dashboard-section-heading"><span aria-hidden="true">▥/);
+});
+
+test("statistics filter keeps desktop controls aligned and uses an intentional responsive wrap", () => {
+  const css = read("admin-tool/admin.css");
+  const alignment = section(css, "#admin-root .at-ref-filter {\n  min-height", "#admin-root .at-dashboard-overview");
+  assert.match(alignment, /grid-template-columns: minmax\(300px, \.7fr\) auto/);
+  assert.match(alignment, /align-items: center/);
+  assert.match(alignment, /justify-content: flex-start/);
+  assert.match(alignment, /flex-wrap: nowrap/);
+  assert.match(alignment, /align-items: flex-end/);
+  assert.match(css, /@media \(max-width: 1580px\)[\s\S]*?\.at-ref-filter form \{ width: 100%; flex-wrap: wrap/);
+});
+
+test("period filter, summary cards, and status share one bordered dashboard panel", () => {
+  const source = read("admin-tool/admin.js");
+  const render = section(source, "function render()", "function bindStateRetry");
+  assert.match(
+    render,
+    /class="at-dashboard-summary-panel"[^>]*>' \+ filterMarkup\(type\) \+ dashboardSummaryMarkup\(\) \+ '<\/section>'/,
+  );
+
+  const css = read("admin-tool/admin.css");
+  assert.match(css, /\.at-dashboard-summary-panel \{[\s\S]*?border: 1px solid var\(--at-shell-border\);[\s\S]*?border-radius: 28px;[\s\S]*?background: var\(--at-shell-surface\);/);
+  assert.match(css, /\.at-dashboard-summary-panel \.at-ref-filter \{[\s\S]*?border: 0;[\s\S]*?background: transparent;[\s\S]*?box-shadow: none;/);
+  assert.match(css, /@media \(max-width: 760px\)[\s\S]*?\.at-dashboard-summary-panel \{[^}]*padding: 20px 14px;[^}]*border-radius: 22px;/);
+});
+
+test("administrator palette uses high-contrast navy, blue, and pastel statistic surfaces", () => {
+  const css = read("admin-tool/admin.css");
+  const palette = section(css, "#admin-root .at-fs-dashboard.at-ref-dashboard", "#admin-root .at-admin-topbar");
+  assert.match(palette, /--at-shell-bg: #f7f9fc/);
+  assert.match(palette, /--at-shell-text: #1b2638/);
+  assert.match(palette, /--at-shell-blue: #2f6df2/);
+  assert.match(css, /\.at-overview-card\.is-cyan \{ border-color: #cdebf7; background: #f1faff; \}/);
+  assert.match(css, /\.at-overview-card\.is-indigo \{ border-color: #d8dcff; background: #f3f4ff; \}/);
+  assert.doesNotMatch(css, /\.at-dashboard-overview \.at-overview-card:nth-child\(n\) \{ border-top-color: inherit; \}/);
+  assert.match(css, /\.at-query-actions button\.is-primary \{ border-color: #4b5e76; background: #4b5e76; color: #fff; \}/);
 });
 
 test("long-running maintenance exports use an immutable filter snapshot", () => {
@@ -210,6 +277,7 @@ test("declared Firestore indexes cover administrator search and public booking l
   assert.deepEqual(signatures, [
     { collection: "visits", scope: "COLLECTION", fields: ["name:ASCENDING", "createdAt:DESCENDING"] },
     { collection: "reservations", scope: "COLLECTION", fields: ["facility:ASCENDING", "createdAt:DESCENDING"] },
+    { collection: "reservations", scope: "COLLECTION", fields: ["facility:ASCENDING", "dateKey:DESCENDING"] },
     { collection: "reservations", scope: "COLLECTION", fields: ["members:CONTAINS", "createdAt:DESCENDING"] },
   ]);
   assert.equal(JSON.parse(read("firebase.json")).firestore.indexes, "firestore.indexes.json");
@@ -281,6 +349,42 @@ test("constructed administrator queries carry the real server constraints", () =
   assert.equal(calls.length, 2);
 });
 
+test("monthly reservation queries use the actual facility date and keep both karaoke rooms distinct", () => {
+  const tool = loadAdminInternals();
+  const constraint = (kind) => (...args) => ({ kind, args });
+  tool.state.config = {
+    auth: { adminEmail: "admin@example.com" },
+    collections: { visits: "visits", reservations: "reservations" },
+    facilities: ["AR 스포츠", "노래방1", "노래방2"],
+  };
+  tool.state.db = { id: "db" };
+  tool.state.filter = "month";
+  tool.state.filterYear = 2026;
+  tool.state.filterMonth = 8;
+  tool.state.recordSearch.reservations = "노래방2";
+  tool.state.api = {
+    collection: (...args) => ({ kind: "collection", args }),
+    where: constraint("where"),
+    orderBy: constraint("orderBy"),
+    startAfter: constraint("startAfter"),
+    limit: constraint("limit"),
+    query: (source, ...constraints) => ({ source, constraints }),
+  };
+
+  const query = tool.buildListQuery("reservations", null);
+  assert.deepEqual(
+    query.constraints.map((item) => [item.kind, ...item.args]),
+    [
+      ["where", "dateKey", ">=", "2026-08-01"],
+      ["where", "dateKey", "<", "2026-09-01"],
+      ["where", "facility", "==", "노래방2"],
+      ["orderBy", "dateKey", "desc"],
+      ["limit", 26],
+    ],
+  );
+  assert.deepEqual(tool.state.config.facilities, ["AR 스포츠", "노래방1", "노래방2"]);
+});
+
 test("A-B-A filter races start a fresh request and only apply the newest response", async () => {
   const tool = loadAdminInternals();
   const pending = [];
@@ -291,8 +395,8 @@ test("A-B-A filter races start a fresh request and only apply the newest respons
   };
   tool.state.auth = { currentUser: { email: "admin@example.com" } };
   tool.state.isAdmin = true;
-  tool.state.db = { id: "db" };
   tool.state.filter = "all";
+  tool.state.db = { id: "db" };
   tool.state.api = {
     collection: (...args) => ({ kind: "collection", args }),
     where: constraint("where"),
@@ -334,6 +438,7 @@ test("maintenance reads cannot publish private data after logout or erase a new 
   };
   tool.state.auth = { currentUser: { email: "admin@example.com" } };
   tool.state.isAdmin = true;
+  tool.state.filter = "all";
   tool.state.db = { id: "db" };
   tool.state.api = {
     collection: (...args) => ({ kind: "collection", args }),

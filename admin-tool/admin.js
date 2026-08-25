@@ -34,11 +34,25 @@
     isAdmin: false,
     adminSessionVersion: 0,
     view: "visits",
-    filter: "all",
+    filter: "month",
     filterYear: today.getFullYear(),
     filterMonth: today.getMonth() + 1,
     rangeStart: "",
     rangeEnd: "",
+    draftFilter: "month",
+    draftFilterYear: today.getFullYear(),
+    draftFilterMonth: today.getMonth() + 1,
+    draftRangeStart: "",
+    draftRangeEnd: "",
+    draftRecordSearch: { visits: "", reservations: "" },
+    dashboardStats: {
+      visits: [],
+      reservations: [],
+      loading: false,
+      error: "",
+      signature: "",
+      requestVersion: 0
+    },
     pendingVisitImport: null,
     pendingReservationImport: null,
     importInProgress: false,
@@ -417,6 +431,12 @@
     state.pendingReservationImport = null;
     state.maintenanceInFlight.clear();
     state.importInProgress = false;
+    state.dashboardStats.visits = [];
+    state.dashboardStats.reservations = [];
+    state.dashboardStats.loading = false;
+    state.dashboardStats.error = "";
+    state.dashboardStats.signature = "";
+    state.dashboardStats.requestVersion++;
 
     // Authentication changes must also remove personal data from hidden DOM,
     // not merely hide the dashboard or clear the in-memory arrays.
@@ -494,17 +514,35 @@
     return new Date(year, monthIndex, day, 0, 0, 0, 0).toISOString();
   }
 
-  function dateRangeForCurrentFilter() {
+  function dateRangeForCurrentFilter(type) {
     if (state.filter === "month") {
+      if (type === "reservations") {
+        var nextMonth = new Date(state.filterYear, state.filterMonth, 1);
+        return {
+          field: "dateKey",
+          start: state.filterYear + "-" + String(state.filterMonth).padStart(2, "0") + "-01",
+          end: localDateKey(nextMonth)
+        };
+      }
       return {
+        field: "createdAt",
         start: localBoundaryIso(state.filterYear, state.filterMonth - 1, 1),
         end: localBoundaryIso(state.filterYear, state.filterMonth, 1)
       };
     }
     if (state.filter === "custom" && state.rangeStart && state.rangeEnd) {
+      if (type === "reservations") {
+        var reservationEndParts = state.rangeEnd.split("-").map(Number);
+        return {
+          field: "dateKey",
+          start: state.rangeStart,
+          end: localDateKey(new Date(reservationEndParts[0], reservationEndParts[1] - 1, reservationEndParts[2] + 1))
+        };
+      }
       var startParts = state.rangeStart.split("-").map(Number);
       var endParts = state.rangeEnd.split("-").map(Number);
       return {
+        field: "createdAt",
         start: localBoundaryIso(startParts[0], startParts[1] - 1, startParts[2]),
         end: localBoundaryIso(endParts[0], endParts[1] - 1, endParts[2] + 1)
       };
@@ -521,34 +559,39 @@
   }
 
   function querySignature(type) {
-    var range = dateRangeForCurrentFilter();
+    var range = dateRangeForCurrentFilter(type);
     return JSON.stringify({
       collection: collectionNameFor(type),
       filter: state.filter,
       range: range,
       search: state.recordSearch[type] || "",
-      order: "createdAt:desc",
+      order: queryOrderField(type) + ":desc",
       size: PAGE_SIZE
     });
   }
 
   function firestoreWhereConstraints(type) {
     var constraints = [];
-    var range = dateRangeForCurrentFilter();
+    var range = dateRangeForCurrentFilter(type);
     var search = String(state.recordSearch[type] || "").trim();
     if (range) {
-      constraints.push(state.api.where("createdAt", ">=", range.start));
-      constraints.push(state.api.where("createdAt", "<", range.end));
+      constraints.push(state.api.where(range.field, ">=", range.start));
+      constraints.push(state.api.where(range.field, "<", range.end));
     }
     if (type === "visits" && search) constraints.push(state.api.where("name", "==", search));
     if (type === "reservations" && search) constraints.push(state.api.where("facility", "==", search));
     return constraints;
   }
 
+  function queryOrderField(type) {
+    var range = dateRangeForCurrentFilter(type);
+    return range && range.field === "dateKey" ? "dateKey" : "createdAt";
+  }
+
   function buildListQuery(type, cursor, pageLimit) {
     var source = state.api.collection(state.db, collectionNameFor(type));
     var constraints = firestoreWhereConstraints(type);
-    constraints.push(state.api.orderBy("createdAt", "desc"));
+    constraints.push(state.api.orderBy(queryOrderField(type), "desc"));
     if (cursor) constraints.push(state.api.startAfter(cursor));
     constraints.push(state.api.limit(pageLimit || PAGE_QUERY_LIMIT));
     return state.api.query.apply(null, [source].concat(constraints));
@@ -558,8 +601,8 @@
     var source = state.api.collection(state.db, collectionNameFor(type));
     var constraints = firestoreWhereConstraints(type);
     // Match the list's ordering so compound count queries reuse the declared
-    // name/facility + createdAt DESC indexes and exclude the same legacy rows.
-    constraints.push(state.api.orderBy("createdAt", "desc"));
+    // exact-search + period indexes and exclude the same legacy rows.
+    constraints.push(state.api.orderBy(queryOrderField(type), "desc"));
     return state.api.query.apply(null, [source].concat(constraints));
   }
 
@@ -711,8 +754,69 @@
     return request;
   }
 
+  function dashboardStatisticsSignature() {
+    return JSON.stringify({
+      filter: state.filter,
+      year: state.filterYear,
+      month: state.filterMonth,
+      start: state.rangeStart,
+      end: state.rangeEnd
+    });
+  }
+
+  function captureStatisticsQuery(type, signature) {
+    var range = dateRangeForCurrentFilter(type);
+    var constraints = [];
+    if (range) {
+      constraints.push(state.api.where(range.field, ">=", range.start));
+      constraints.push(state.api.where(range.field, "<", range.end));
+    }
+    return {
+      signature: "dashboard::" + signature + "::" + type,
+      constraints: constraints,
+      orderField: range ? range.field : "createdAt"
+    };
+  }
+
+  async function loadDashboardStatistics(options) {
+    options = options || {};
+    if (!requireAdminSession()) return false;
+    var dashboard = state.dashboardStats;
+    var signature = dashboardStatisticsSignature();
+    if (dashboard.signature === signature && !options.force) {
+      safeRender(["visits", "reservations"]);
+      return true;
+    }
+    var version = ++dashboard.requestVersion;
+    dashboard.signature = signature;
+    dashboard.visits = [];
+    dashboard.reservations = [];
+    dashboard.loading = true;
+    dashboard.error = "";
+    safeRender(["visits", "reservations"]);
+    try {
+      var results = await Promise.all([
+        fetchAllForMaintenance("visits", true, captureStatisticsQuery("visits", signature)),
+        fetchAllForMaintenance("reservations", true, captureStatisticsQuery("reservations", signature))
+      ]);
+      if (version !== dashboard.requestVersion || signature !== dashboardStatisticsSignature() || !state.isAdmin) return false;
+      dashboard.visits = results[0];
+      dashboard.reservations = results[1];
+      return true;
+    } catch (error) {
+      logFirestoreError("dashboard statistics", error);
+      if (version === dashboard.requestVersion) dashboard.error = firestoreErrorMessage(error, "기간 통계");
+      return false;
+    } finally {
+      if (version === dashboard.requestVersion) {
+        dashboard.loading = false;
+        safeRender(["visits", "reservations"]);
+      }
+    }
+  }
+
   function loadListView(type, options) {
-    return Promise.all([loadListPage(type, options), loadAggregateCount(type, options)]);
+    return Promise.all([loadDashboardStatistics(options), loadListPage(type, options), loadAggregateCount(type, options)]);
   }
 
   async function loadSettingsView(view, force) {
@@ -934,20 +1038,84 @@
     return "전체 기간";
   }
 
-  function overviewCards(records, isAr, list) {
-    var peopleCount = records.reduce(function (sum, row) { return sum + (isAr ? (row.members || []).length : 1); }, 0);
-    var categories = new Set();
-    records.forEach(function (row) {
-      if (isAr) { if (row.facility) categories.add(row.facility); }
-      else (row.activities || []).forEach(function (activity) { categories.add(currentActivityName(activity)); });
+  function facilityLabel(value) {
+    if (value === "노래방1") return "노래방 1실";
+    if (value === "노래방2") return "노래방 2실";
+    return value || "시설 미지정";
+  }
+
+  function filterIconMarkup() {
+    return '<span class="at-filter-icon" aria-hidden="true"><svg viewBox="0 0 24 24" fill="none"><path d="M3 4h18l-7 8v6l-4 2v-8L3 4Z"/></svg></span>';
+  }
+
+  function statisticsIconMarkup() {
+    return '<span class="at-section-icon" aria-hidden="true"><svg viewBox="0 0 24 24" fill="none"><path d="M4 4v16h16"/><path d="M8 16v-5M12 16V7M16 16V9"/></svg></span>';
+  }
+
+  function dashboardSummaryMarkup() {
+    var dashboard = state.dashboardStats;
+    var visits = dashboard.visits;
+    var reservations = dashboard.reservations;
+    var pending = dashboard.loading && !visits.length && !reservations.length;
+    var visitRecords = visits.length;
+    var purposeSelections = visits.reduce(function (sum, row) { return sum + (row.activities || []).length; }, 0);
+    var reservationPeople = reservations.reduce(function (sum, row) { return sum + (row.members || []).length; }, 0);
+    var value = function (number) { return pending ? "…" : number.toLocaleString(); };
+    var cards = [
+      { label: "방문 기록", value: value(visitRecords), unit: pending ? "" : "건", note: "방문 등록 건수", tone: "blue" },
+      { label: "실제 방문 인원", value: value(visitRecords), unit: pending ? "" : "명", note: "1개 기록 = 1명", tone: "blue" },
+      { label: "이용 목적 선택", value: value(purposeSelections), unit: pending ? "" : "회", note: "복수 선택 합계", tone: "cyan" },
+      { label: "시설 예약", value: value(reservations.length), unit: pending ? "" : "건", note: "AR·노래방 전체", tone: "indigo" },
+      { label: "시설 이용 인원", value: value(reservationPeople), unit: pending ? "" : "명", note: "예약별 이용자 합계", tone: "indigo" }
+    ];
+    return '<section class="at-overview-grid at-dashboard-overview" aria-label="선택 기간 통계 요약">' + cards.map(function (card) {
+      return '<article class="at-overview-card is-' + card.tone + '"><span class="at-overview-label">' + card.label + '</span><strong class="at-overview-value">' + card.value + '<small>' + card.unit + '</small></strong><span class="at-overview-note">' + card.note + '</span></article>';
+    }).join("") + '</section>' +
+      '<div class="at-period-status"><strong>' + esc(currentPeriodLabel()) + ' 통계</strong><span>방문 ' + value(visitRecords) + (pending ? '' : '건') + ' · 시설 예약 ' + value(reservations.length) + (pending ? '' : '건') + '</span></div>' +
+      (dashboard.error ? '<p class="at-inline-warning" role="alert">' + esc(dashboard.error) + '</p>' : '');
+  }
+
+  function barRowsMarkup(rows, emptyText) {
+    var maximum = rows.reduce(function (max, row) { return Math.max(max, row.value); }, 0);
+    if (!rows.length || maximum === 0) return '<p class="at-chart-empty">' + esc(emptyText) + '</p>';
+    return '<div class="at-bar-list">' + rows.map(function (row) {
+      var width = row.value ? Math.max(4, Math.round(row.value / maximum * 100)) : 0;
+      return '<div class="at-bar-row"><strong>' + esc(row.label) + '</strong><div class="at-bar-track"><span style="width:' + width + '%"></span></div><span>' + esc(row.display == null ? row.value.toLocaleString() : row.display) + '</span></div>';
+    }).join("") + '</div>';
+  }
+
+  function dashboardInsightsMarkup() {
+    var dashboard = state.dashboardStats;
+    var purposeCounts = new Map();
+    purposeList(dashboard.visits).forEach(function (purpose) { purposeCounts.set(purpose, 0); });
+    dashboard.visits.forEach(function (row) {
+      (row.activities || []).forEach(function (activity) {
+        var name = currentActivityName(activity);
+        purposeCounts.set(name, (purposeCounts.get(name) || 0) + 1);
+      });
     });
-    var total = list.totalCount == null ? (list.countLoading ? "…" : "—") : list.totalCount.toLocaleString();
-    return '<section class="at-overview-grid" aria-label="' + (isAr ? '시설 예약' : '방문 등록') + ' 요약">' +
-      '<article class="at-overview-card"><span class="at-overview-label">조건 일치 전체 건수</span><strong class="at-overview-value">' + total + (list.totalCount == null ? '' : '건') + '</strong><span class="at-overview-note">서버 집계 · ' + esc(currentPeriodLabel()) + '</span></article>' +
-      '<article class="at-overview-card"><span class="at-overview-label">현재 페이지</span><strong class="at-overview-value">' + records.length.toLocaleString() + '건</strong><span class="at-overview-note">페이지당 최대 ' + PAGE_SIZE + '건</span></article>' +
-      '<article class="at-overview-card"><span class="at-overview-label">현재 페이지 이용 인원</span><strong class="at-overview-value">' + peopleCount.toLocaleString() + '명</strong><span class="at-overview-note">목록에 표시된 데이터</span></article>' +
-      '<article class="at-overview-card"><span class="at-overview-label">현재 페이지 분류수</span><strong class="at-overview-value">' + categories.size.toLocaleString() + '개</strong><span class="at-overview-note">' + (isAr ? '시설 종류' : '활동 종류') + '</span></article>' +
-    '</section>';
+    var purposeRows = Array.from(purposeCounts, function (entry) { return { label: entry[0], value: entry[1] }; });
+
+    var facilities = facilityList(dashboard.reservations);
+    var facilityRows = facilities.map(function (facility) {
+      var matching = dashboard.reservations.filter(function (row) { return row.facility === facility; });
+      var people = matching.reduce(function (sum, row) { return sum + (row.members || []).length; }, 0);
+      return { label: facilityLabel(facility), value: people, display: "예약 " + matching.length.toLocaleString() + "건 · " + people.toLocaleString() + "명" };
+    });
+
+    var ageRows = groups().map(function (group) {
+      var count = dashboard.visits.reduce(function (sum, row) {
+        var age = Number(row.age);
+        return sum + (age >= group.min && age <= group.max ? 1 : 0);
+      }, 0);
+      return { label: group.label, value: count, display: count.toLocaleString() + "명" };
+    });
+
+    return '<section class="at-dashboard-insights" aria-labelledby="at-insights-title"><div class="at-dashboard-section-heading">' + statisticsIconMarkup() + '<div><h2 id="at-insights-title">이용 목적 및 연령별 통계</h2><p>선택한 기간 전체 데이터를 기준으로 집계합니다.</p></div></div><div class="at-insight-grid">' +
+      '<article class="at-insight-card"><header><div><span>VISIT PURPOSE</span><h3>이용 목적</h3></div><strong>' + dashboard.visits.length.toLocaleString() + '건</strong></header>' + barRowsMarkup(purposeRows, "이 기간의 방문 기록이 없습니다.") + '</article>' +
+      '<article class="at-insight-card is-facility"><header><div><span>FACILITIES</span><h3>시설별 예약·이용 인원</h3></div><strong>' + facilities.length.toLocaleString() + '개 시설</strong></header>' + barRowsMarkup(facilityRows, "이 기간의 시설 예약이 없습니다.") + '</article>' +
+      '<article class="at-insight-card is-age"><header><div><span>AGE GROUP</span><h3>연령별 방문 인원</h3></div><strong>' + dashboard.visits.length.toLocaleString() + '명</strong></header>' + barRowsMarkup(ageRows, "이 기간의 연령 통계가 없습니다.") + '</article>' +
+    '</div></section>';
   }
 
   function dataStateCard(options) {
@@ -970,12 +1138,12 @@
 
   function filterMarkup(type) {
     var years = yearOptions();
-    var monthControls = state.filter === "month" ? '<div class="at-ref-month-range"><select id="at-ref-year" aria-label="조회 연도">' + years.map(function (year) { return '<option value="' + year + '"' + (year === state.filterYear ? ' selected' : '') + '>' + year + '년</option>'; }).join("") + '</select><select id="at-ref-month" aria-label="조회 월">' + Array.from({ length: 12 }, function (_, index) { var month = index + 1; return '<option value="' + month + '"' + (month === state.filterMonth ? ' selected' : '') + '>' + month + '월</option>'; }).join("") + '</select></div>' : '';
-    var customControls = state.filter === "custom" ? '<div class="at-ref-date-range"><input id="at-ref-start-date" type="date" aria-label="시작일" value="' + esc(state.rangeStart) + '"><span aria-hidden="true">~</span><input id="at-ref-end-date" type="date" aria-label="종료일" value="' + esc(state.rangeEnd) + '"></div>' : '';
+    var monthControls = state.draftFilter === "month" ? '<div class="at-ref-month-range"><select id="at-ref-year" aria-label="조회 연도">' + years.map(function (year) { return '<option value="' + year + '"' + (year === state.draftFilterYear ? ' selected' : '') + '>' + year + '년</option>'; }).join("") + '</select><select id="at-ref-month" aria-label="조회 월">' + Array.from({ length: 12 }, function (_, index) { var month = index + 1; return '<option value="' + month + '"' + (month === state.draftFilterMonth ? ' selected' : '') + '>' + month + '월</option>'; }).join("") + '</select></div>' : '';
+    var customControls = state.draftFilter === "custom" ? '<div class="at-ref-date-range"><input id="at-ref-start-date" type="date" aria-label="시작일" value="' + esc(state.draftRangeStart) + '"><span aria-hidden="true">~</span><input id="at-ref-end-date" type="date" aria-label="종료일" value="' + esc(state.draftRangeEnd) + '"></div>' : '';
     var searchControl = type === "visits"
-      ? '<label class="at-record-search"><span>방문자 정확한 이름</span><input id="at-record-search" type="search" autocomplete="off" value="' + esc(state.recordSearch.visits) + '" placeholder="예: 홍길동"></label>'
-      : '<label class="at-record-search"><span>시설</span><select id="at-record-search"><option value="">전체 시설</option>' + facilityList([]).map(function (facility) { return '<option value="' + esc(facility) + '"' + (state.recordSearch.reservations === facility ? ' selected' : '') + '>' + esc(facility === "노래방1" ? "노래방 1실" : facility === "노래방2" ? "노래방 2실" : facility) + '</option>'; }).join("") + '</select></label>';
-    return '<section class="at-ref-filter" aria-labelledby="at-filter-label"><div class="at-filter-copy"><strong id="at-filter-label">검색 및 기간 필터</strong><span>조건은 Firestore 서버 쿼리에 적용됩니다.</span></div><form id="at-query-form"><div class="at-filter-modes" role="group" aria-labelledby="at-filter-label"><button type="button" data-filter="all" aria-pressed="' + (state.filter === 'all') + '" class="' + (state.filter === 'all' ? 'is-current' : '') + '">전체</button><button type="button" data-filter="month" aria-pressed="' + (state.filter === 'month') + '" class="' + (state.filter === 'month' ? 'is-current' : '') + '">월별</button><button type="button" data-filter="custom" aria-pressed="' + (state.filter === 'custom') + '" class="' + (state.filter === 'custom' ? 'is-current' : '') + '">지정 기간</button></div>' + monthControls + customControls + searchControl + '<div class="at-query-actions"><button type="button" id="at-query-clear">초기화</button><button type="submit" class="is-primary">조회</button></div></form></section>';
+      ? '<label class="at-record-search"><span>방문자 정확한 이름</span><input id="at-record-search" type="search" autocomplete="off" value="' + esc(state.draftRecordSearch.visits) + '" placeholder="예: 홍길동"></label>'
+      : '<label class="at-record-search"><span>시설</span><select id="at-record-search"><option value="">전체 시설</option>' + facilityList([]).map(function (facility) { return '<option value="' + esc(facility) + '"' + (state.draftRecordSearch.reservations === facility ? ' selected' : '') + '>' + esc(facility === "노래방1" ? "노래방 1실" : facility === "노래방2" ? "노래방 2실" : facility) + '</option>'; }).join("") + '</select></label>';
+    return '<section class="at-ref-filter" aria-labelledby="at-filter-label"><div class="at-filter-copy">' + filterIconMarkup() + '<div><strong id="at-filter-label">통계 기간 필터</strong><span>조건을 선택한 뒤 조회 버튼을 눌러 적용합니다.</span></div></div><form id="at-query-form"><div class="at-filter-modes" role="group" aria-labelledby="at-filter-label"><button type="button" data-filter="all" aria-pressed="' + (state.draftFilter === 'all') + '" class="' + (state.draftFilter === 'all' ? 'is-current' : '') + '">전체</button><button type="button" data-filter="month" aria-pressed="' + (state.draftFilter === 'month') + '" class="' + (state.draftFilter === 'month' ? 'is-current' : '') + '">월별</button><button type="button" data-filter="custom" aria-pressed="' + (state.draftFilter === 'custom') + '" class="' + (state.draftFilter === 'custom' ? 'is-current' : '') + '">지정 기간</button></div>' + monthControls + customControls + searchControl + '<div class="at-query-actions"><button type="button" id="at-query-clear">초기화</button><button type="submit" class="is-primary"><span aria-hidden="true">⌕</span> 조회</button></div></form></section>';
   }
 
   function render() {
@@ -996,12 +1164,10 @@
     if (list.loading && !list.rows.length) { content.innerHTML = dataStateCard({ loading: true, title: listNoun(type) + "을 불러오는 중입니다.", message: "최대 " + PAGE_SIZE + "건만 안전하게 조회합니다." }); return; }
     if (list.error) { content.innerHTML = dataStateCard({ title: listNoun(type) + "을 불러오지 못했습니다.", message: list.error }); bindStateRetry(function () { loadListView(type, { pageIndex: list.pageIndex, force: true }); }); return; }
     var records = list.rows;
-    var purposes = isAr ? facilityList(records) : purposeList(records);
-    var title = isAr ? "현재 페이지 시설 이용 통계" : "현재 페이지 이용 목적 및 연령 통계";
     var recordActions = isAr
       ? '<input id="at-reservation-csv-input" type="file" accept=".csv,text/csv" aria-label="시설예약 CSV 파일 선택" hidden><button type="button" class="at-reservation-import-btn" id="at-reservation-import" aria-controls="at-reservation-csv-input">＋ 예약 CSV 불러오기</button>'
       : '<input id="at-visit-csv-input" type="file" accept=".csv,text/csv" aria-label="방문 기록 CSV 파일 선택" hidden><button type="button" class="at-visit-import-btn" id="at-visit-import" aria-controls="at-visit-csv-input">＋ CSV 불러오기</button><button type="button" class="at-visit-backup-btn" id="at-visit-backup">⇩ 백업 CSV</button><button type="button" class="at-visit-trash-btn" id="at-visit-trash" aria-haspopup="dialog">♻ 휴지통</button>';
-    content.innerHTML = '<div class="at-page-heading"><div><span class="at-page-eyebrow">ADMIN DATA</span><h1>' + (isAr ? '시설 예약 현황' : '방문 등록 내역') + '</h1><p>필요한 페이지와 집계만 서버에서 조회합니다.</p></div><button type="button" id="at-refresh-list" class="at-refresh-btn"' + (list.loading ? ' disabled aria-busy="true"' : '') + '>↻ 새로고침</button></div>' + overviewCards(records, isAr, list) + (list.countError ? '<p class="at-inline-warning" role="status">' + esc(list.countError) + '</p>' : '') + filterMarkup(type) + '<section class="at-ref-section"><div class="at-section-heading"><div><span>현재 페이지 기준</span><h2>' + (isAr ? '✓' : '▥') + ' ' + title + '</h2></div></div>' + statsTable(records, purposes, isAr, isAr) + '<div class="at-log-header"><div><h2 class="at-log-title">상세 ' + (isAr ? '시설 예약' : '방문') + ' 내역</h2><p>최신순 · 페이지당 ' + PAGE_SIZE + '건</p></div><div class="at-log-actions">' + recordActions + '<button type="button" class="at-excel-btn ' + (isAr ? 'at-indigo-btn' : '') + '" id="at-ref-export" aria-label="현재 조건의 ' + (isAr ? '시설 예약' : '방문 등록') + ' 보고서 CSV 다운로드">⇩ 보고서 CSV</button><span class="at-count-badge ' + (isAr ? 'at-indigo-badge' : 'at-blue-badge') + '">' + records.length + '건</span></div></div><div class="at-log-table-wrap"><table class="at-log-table"><thead class="at-log-thead">' + (isAr ? '<tr><th>예약날짜</th><th>예약시간</th><th>시설</th><th>대표자</th><th>총 인원</th><th>이용자 명단</th><th>관리</th></tr>' : '<tr><th>날짜</th><th>시간</th><th>이름</th><th>성별</th><th>나이</th><th>목적</th><th>관리</th></tr>') + '</thead><tbody id="at-fs-body"></tbody></table></div><div id="at-visit-pager"></div></section>';
+    content.innerHTML = '<div class="at-page-heading"><div><span class="at-page-eyebrow">ADMIN DASHBOARD</span><h1>' + (isAr ? '시설 예약 현황' : '방문 통계 대시보드') + '</h1><p>처음에는 이번 달만 표시하며, 선택한 조건은 조회 버튼을 눌렀을 때 적용됩니다.</p></div><button type="button" id="at-refresh-list" class="at-refresh-btn"' + (list.loading ? ' disabled aria-busy="true"' : '') + '>↻ 새로고침</button></div><section class="at-dashboard-summary-panel" aria-label="기간별 통계 요약">' + filterMarkup(type) + dashboardSummaryMarkup() + '</section>' + dashboardInsightsMarkup() + (list.countError ? '<p class="at-inline-warning" role="status">' + esc(list.countError) + '</p>' : '') + '<section class="at-ref-section at-record-section"><div class="at-log-header"><div><span class="at-page-eyebrow">DETAIL RECORDS</span><h2 class="at-log-title">상세 ' + (isAr ? '시설 예약' : '방문') + ' 내역</h2><p>최신순 · 페이지당 ' + PAGE_SIZE + '건 · 조건 일치 ' + (list.totalCount == null ? '집계 중' : list.totalCount.toLocaleString() + '건') + '</p></div><div class="at-log-actions">' + recordActions + '<button type="button" class="at-excel-btn ' + (isAr ? 'at-indigo-btn' : '') + '" id="at-ref-export" aria-label="현재 조건의 ' + (isAr ? '시설 예약' : '방문 등록') + ' 보고서 CSV 다운로드">⇩ 보고서 CSV</button><span class="at-count-badge ' + (isAr ? 'at-indigo-badge' : 'at-blue-badge') + '">' + records.length + '건</span></div></div><div class="at-log-table-wrap"><table class="at-log-table"><thead class="at-log-thead">' + (isAr ? '<tr><th>예약날짜</th><th>예약시간</th><th>시설</th><th>대표자</th><th>총 인원</th><th>이용자 명단</th><th>관리</th></tr>' : '<tr><th>날짜</th><th>시간</th><th>이름</th><th>성별</th><th>나이</th><th>목적</th><th>관리</th></tr>') + '</thead><tbody id="at-fs-body"></tbody></table></div><div id="at-visit-pager"></div></section>';
     bindListControls(type);
     renderTable(type);
   }
@@ -1011,20 +1177,30 @@
     if (button) button.onclick = callback;
   }
 
-  function applyListQueryFromControls(type) {
+  function captureDraftFromControls(type) {
     var search = document.getElementById("at-record-search");
-    if (state.filter === "month") {
-      state.filterYear = Number(document.getElementById("at-ref-year").value);
-      state.filterMonth = Number(document.getElementById("at-ref-month").value);
+    var year = document.getElementById("at-ref-year");
+    var month = document.getElementById("at-ref-month");
+    var start = document.getElementById("at-ref-start-date");
+    var end = document.getElementById("at-ref-end-date");
+    if (search) state.draftRecordSearch[type] = search.value.trim();
+    if (year) state.draftFilterYear = Number(year.value);
+    if (month) state.draftFilterMonth = Number(month.value);
+    if (start) state.draftRangeStart = start.value;
+    if (end) state.draftRangeEnd = end.value;
+  }
+
+  function applyListQueryFromControls(type) {
+    captureDraftFromControls(type);
+    if (state.draftFilter === "custom") {
+      if (!state.draftRangeStart || !state.draftRangeEnd || state.draftRangeStart > state.draftRangeEnd) { notify("시작일과 종료일을 올바르게 선택해주세요.", "error"); return; }
     }
-    if (state.filter === "custom") {
-      var start = document.getElementById("at-ref-start-date").value;
-      var end = document.getElementById("at-ref-end-date").value;
-      if (!start || !end || start > end) { notify("시작일과 종료일을 올바르게 선택해주세요.", "error"); return; }
-      state.rangeStart = start;
-      state.rangeEnd = end;
-    }
-    state.recordSearch[type] = search ? search.value.trim() : "";
+    state.filter = state.draftFilter;
+    state.filterYear = state.draftFilterYear;
+    state.filterMonth = state.draftFilterMonth;
+    state.rangeStart = state.draftRangeStart;
+    state.rangeEnd = state.draftRangeEnd;
+    state.recordSearch[type] = state.draftRecordSearch[type];
     state.lists[type].pageIndex = 0;
     loadListView(type, { pageIndex: 0 });
   }
@@ -1048,28 +1224,21 @@
     });
     document.querySelectorAll("#at-query-form [data-filter]").forEach(function (button) {
       button.onclick = function () {
-        var currentSearch = document.getElementById("at-record-search");
-        if (currentSearch) state.recordSearch[type] = currentSearch.value.trim();
-        var currentYear = document.getElementById("at-ref-year");
-        var currentMonth = document.getElementById("at-ref-month");
-        if (currentYear) state.filterYear = Number(currentYear.value);
-        if (currentMonth) state.filterMonth = Number(currentMonth.value);
-        var currentStart = document.getElementById("at-ref-start-date");
-        var currentEnd = document.getElementById("at-ref-end-date");
-        if (currentStart && currentStart.value) state.rangeStart = currentStart.value;
-        if (currentEnd && currentEnd.value) state.rangeEnd = currentEnd.value;
-        state.filter = button.dataset.filter;
-        if (state.filter === "custom" && !state.rangeStart) { state.rangeStart = localDateKey(new Date()); state.rangeEnd = state.rangeStart; }
+        captureDraftFromControls(type);
+        state.draftFilter = button.dataset.filter;
+        if (state.draftFilter === "custom" && !state.draftRangeStart) { state.draftRangeStart = localDateKey(new Date()); state.draftRangeEnd = state.draftRangeStart; }
         render();
-        applyListQueryFromControls(type);
       };
     });
     queryForm.onsubmit = function (event) { event.preventDefault(); applyListQueryFromControls(type); };
     document.getElementById("at-query-clear").onclick = function () {
-      state.filter = "all";
-      state.recordSearch[type] = "";
-      state.lists[type].pageIndex = 0;
-      loadListView(type, { pageIndex: 0 });
+      state.draftFilter = "month";
+      state.draftFilterYear = new Date().getFullYear();
+      state.draftFilterMonth = new Date().getMonth() + 1;
+      state.draftRangeStart = "";
+      state.draftRangeEnd = "";
+      state.draftRecordSearch[type] = "";
+      render();
     };
     document.getElementById("at-refresh-list").onclick = function () { invalidateListCache(type); loadListView(type, { pageIndex: 0, force: true }); };
     if (isAr) {
@@ -1093,7 +1262,7 @@
     body.innerHTML = rows.map(function (row) {
       if (view === "visits") return "<tr class=\"at-log-row\"><td class=\"at-date-cell\">" + esc(row.dateKey || dateOnlyText(row.createdAt)) + "</td><td class=\"at-time-cell\">" + esc(visitTimeText(row)) + "</td><td class=\"at-name-cell\">" + esc(row.name) + "</td><td>" + esc(row.gender) + "</td><td>" + esc(row.age) + "</td><td><div class=\"at-purpose-wrap\">" + (row.activities || []).map(function (item) { return '<span class="at-purpose-badge">' + esc(currentActivityName(item)) + '</span>'; }).join("") + "</div></td><td><button type=\"button\" class=\"at-delete-btn at-fs-delete\" data-collection=\"visits\" data-id=\"" + esc(row.id) + "\" aria-label=\"" + esc((row.name || "이름 없음") + " 방문 기록 삭제") + "\">삭제</button></td></tr>";
       var members = row.members || [];
-      return "<tr class=\"at-log-row at-ar-row\"><td class=\"at-date-cell\">" + esc(row.dateKey || dateOnlyText(row.createdAt)) + "</td><td class=\"at-time-cell at-indigo-text\">" + esc(row.timeSlot) + "</td><td class=\"at-name-cell\">" + esc(row.facility || "시설 미지정") + "</td><td class=\"at-name-cell\">" + esc(members[0] && members[0].name) + "</td><td>" + members.length + "명</td><td class=\"at-detail-cell\">" + members.map(function (member) { return '<span class="at-user-chip">' + esc(member.name) + '<span class="at-user-meta">(' + esc(member.gender) + ', ' + esc(member.age) + ')</span></span>'; }).join("") + "</td><td><button type=\"button\" class=\"at-delete-btn at-fs-delete\" data-collection=\"reservations\" data-id=\"" + esc(row.id) + "\" aria-label=\"" + esc((row.facility || "시설") + " 예약 기록 삭제") + "\">삭제</button></td></tr>";
+      return "<tr class=\"at-log-row at-ar-row\"><td class=\"at-date-cell\">" + esc(row.dateKey || dateOnlyText(row.createdAt)) + "</td><td class=\"at-time-cell at-indigo-text\">" + esc(row.timeSlot) + "</td><td class=\"at-name-cell\">" + esc(facilityLabel(row.facility)) + "</td><td class=\"at-name-cell\">" + esc(members[0] && members[0].name) + "</td><td>" + members.length + "명</td><td class=\"at-detail-cell\">" + members.map(function (member) { return '<span class="at-user-chip">' + esc(member.name) + '<span class="at-user-meta">(' + esc(member.gender) + ', ' + esc(member.age) + ')</span></span>'; }).join("") + "</td><td><button type=\"button\" class=\"at-delete-btn at-fs-delete\" data-collection=\"reservations\" data-id=\"" + esc(row.id) + "\" aria-label=\"" + esc(facilityLabel(row.facility) + " 예약 기록 삭제") + "\">삭제</button></td></tr>";
     }).join("");
     body.querySelectorAll(".at-fs-delete").forEach(function (button) { button.onclick = removeRecord; });
     renderPager(view);
@@ -1166,7 +1335,8 @@
       // Import preflight and an unfiltered export are the same server scan and
       // should share one in-flight promise instead of doubling document reads.
       signature: constraints.length ? querySignature(type) : "all",
-      constraints: constraints
+      constraints: constraints,
+      orderField: useActiveFilters ? queryOrderField(type) : "createdAt"
     };
   }
 
@@ -1184,7 +1354,7 @@
         if (!hasAdminSession()) throw Object.assign(new Error("Admin session expired"), { code: "unauthenticated" });
         var source = state.api.collection(state.db, collectionNameFor(type));
         var constraints = baseConstraints.slice();
-        constraints.push(state.api.orderBy("createdAt", "desc"));
+        constraints.push(state.api.orderBy(queryContext.orderField || "createdAt", "desc"));
         if (cursor) constraints.push(state.api.startAfter(cursor));
         constraints.push(state.api.limit(MAINTENANCE_PAGE_SIZE));
         var snapshot = await state.api.getDocs(state.api.query.apply(null, [source].concat(constraints)));

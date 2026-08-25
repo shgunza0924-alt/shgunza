@@ -890,15 +890,15 @@
 
 /* Auth-gated, paged administrator workspace. All rules stay inside admin-root. */
 #admin-root .at-fs-dashboard.at-ref-dashboard {
-  --at-shell-bg: #f3f6fb;
+  --at-shell-bg: #f7f9fc;
   --at-shell-surface: #fff;
-  --at-shell-sidebar: #172033;
-  --at-shell-sidebar-muted: #9aa8bb;
-  --at-shell-border: #dce5ef;
-  --at-shell-text: #172033;
-  --at-shell-muted: #66768a;
-  --at-shell-blue: #2563eb;
-  --at-shell-indigo: #4f46e5;
+  --at-shell-sidebar: #fff;
+  --at-shell-sidebar-muted: #8293aa;
+  --at-shell-border: #dbe4ef;
+  --at-shell-text: #1b2638;
+  --at-shell-muted: #60728c;
+  --at-shell-blue: #2f6df2;
+  --at-shell-indigo: #4941d0;
   padding: 0;
   background: var(--at-shell-bg);
   color: var(--at-shell-text);
@@ -952,8 +952,9 @@
   gap: 8px;
   overflow-y: auto;
   border: 0;
+  border-right: 1px solid var(--at-shell-border);
   background: var(--at-shell-sidebar);
-  box-shadow: 8px 0 24px rgba(15, 23, 42, .06);
+  box-shadow: 6px 0 20px rgba(65, 83, 110, .045);
 }
 
 #admin-root .at-admin-sidebar.at-ref-tabs button {
@@ -980,22 +981,22 @@
   height: 28px;
   place-items: center;
   border-radius: 8px;
-  background: rgba(255, 255, 255, .07);
-  color: #cbd5e1;
+  background: #f1f5fa;
+  color: #71839a;
 }
 
-#admin-root .at-admin-sidebar.at-ref-tabs button:hover { background: rgba(255, 255, 255, .06); color: #fff; }
+#admin-root .at-admin-sidebar.at-ref-tabs button:hover { background: #f4f8fe; color: #2d5fd5; }
 #admin-root .at-admin-sidebar.at-ref-tabs button.is-active,
 #admin-root .at-admin-sidebar.at-ref-tabs button[data-at-view="reservations"].is-active,
 #admin-root .at-admin-sidebar.at-ref-tabs button[data-at-view="activities"].is-active,
 #admin-root .at-admin-sidebar.at-ref-tabs button[data-at-view="booking-settings"].is-active {
-  border-color: rgba(147, 197, 253, .2);
-  background: linear-gradient(135deg, rgba(37, 99, 235, .3), rgba(79, 70, 229, .22));
-  box-shadow: inset 3px 0 #60a5fa;
-  color: #fff;
+  border-color: #cfe0ff;
+  background: #edf4ff;
+  box-shadow: inset 3px 0 #2f6df2;
+  color: #2463e8;
 }
 
-#admin-root .at-admin-sidebar.at-ref-tabs button.is-active > span:first-child { background: #2563eb; color: #fff; }
+#admin-root .at-admin-sidebar.at-ref-tabs button.is-active > span:first-child { background: #2f6df2; color: #fff; }
 
 #admin-root .at-admin-content.at-ref-content {
   width: 100%;
@@ -1028,8 +1029,8 @@
   padding: 10px 15px;
   border: 1px solid #bfdbfe;
   border-radius: 11px;
-  background: #eff6ff;
-  color: #1d4ed8;
+  background: #f2f7ff;
+  color: #245fda;
   font: inherit;
   font-size: 13px;
   font-weight: 850;
@@ -1075,7 +1076,7 @@
 #admin-root .at-ref-filter form { display: flex; min-width: 0; flex-wrap: wrap; align-items: end; justify-content: flex-end; gap: 10px; }
 #admin-root .at-filter-modes { display: flex; align-items: center; gap: 6px; }
 #admin-root .at-ref-filter button { min-height: 40px; padding: 9px 13px; border-radius: 10px; font-size: 12px; }
-#admin-root .at-ref-filter button.is-current { background: #172033; border-color: #172033; color: #fff; }
+#admin-root .at-ref-filter button.is-current { background: #1f2b40; border-color: #1f2b40; color: #fff; }
 #admin-root .at-ref-month-range,
 #admin-root .at-ref-date-range { display: flex; min-width: 0; align-items: center; gap: 6px; }
 #admin-root .at-ref-month-range select,
@@ -1096,7 +1097,7 @@
 #admin-root .at-record-search input { width: 190px; }
 #admin-root .at-record-search select { width: 170px; }
 #admin-root .at-query-actions { display: flex; gap: 6px; }
-#admin-root .at-query-actions button.is-primary { border-color: var(--at-shell-blue); background: var(--at-shell-blue); color: #fff; }
+#admin-root .at-query-actions button.is-primary { border-color: #4b5e76; background: #4b5e76; color: #fff; }
 
 #admin-root .at-ref-section {
   padding: 22px;
@@ -1138,11 +1139,179 @@
 #admin-root .at-modal-error { color: #b91c1c; }
 #admin-root .at-modal-error p { margin: 0; color: #64748b; }
 
+#admin-root .at-dashboard-summary-panel {
+  margin: 0 0 36px;
+  padding: 32px;
+  border: 1px solid var(--at-shell-border);
+  border-radius: 28px;
+  background: var(--at-shell-surface);
+  box-shadow: 0 14px 36px rgba(65, 83, 110, .075);
+}
+#admin-root .at-dashboard-summary-panel .at-ref-filter {
+  min-height: 118px;
+  margin: 0 0 28px;
+  padding: 2px 0 28px;
+  border: 0;
+  border-radius: 0;
+  background: transparent;
+  box-shadow: none;
+}
+#admin-root .at-dashboard-summary-panel .at-dashboard-overview { margin-bottom: 14px; }
+#admin-root .at-dashboard-summary-panel .at-period-status { margin-bottom: 0; }
+#admin-root .at-dashboard-summary-panel .at-inline-warning { margin: 14px 0 0; }
+
+#admin-root .at-ref-filter {
+  min-height: 150px;
+  padding: 28px 32px;
+  grid-template-columns: minmax(300px, .7fr) auto;
+  align-items: center;
+  column-gap: 32px;
+}
+#admin-root .at-ref-filter form {
+  width: max-content;
+  max-width: 100%;
+  flex-wrap: nowrap;
+  align-items: flex-end;
+  justify-content: flex-end;
+  justify-self: end;
+}
+#admin-root .at-filter-copy {
+  display: flex;
+  width: 100%;
+  min-width: 0;
+  align-items: center;
+  justify-content: flex-start;
+  flex-wrap: nowrap;
+  gap: 14px;
+}
+#admin-root .at-filter-copy > div { display: grid; gap: 5px; }
+#admin-root .at-filter-copy strong { font-size: 18px; }
+#admin-root .at-filter-copy span:not(.at-filter-icon) { font-size: 13px; }
+#admin-root .at-filter-icon {
+  display: grid;
+  width: 38px;
+  height: 38px;
+  flex: none;
+  place-items: center;
+  color: #687b94;
+}
+#admin-root .at-filter-icon svg { width: 32px; height: 32px; overflow: visible; }
+#admin-root .at-filter-icon path { stroke: currentColor; stroke-width: 1.8; stroke-linecap: round; stroke-linejoin: round; }
+#admin-root .at-filter-modes,
+#admin-root .at-ref-month-range,
+#admin-root .at-ref-date-range,
+#admin-root .at-query-actions { flex: none; }
+#admin-root .at-ref-filter button,
+#admin-root .at-ref-month-range select,
+#admin-root .at-ref-date-range input,
+#admin-root .at-record-search input,
+#admin-root .at-record-search select { min-height: 48px; }
+#admin-root .at-ref-filter button { padding: 11px 16px; font-size: 13px; }
+#admin-root .at-ref-month-range select { min-width: 108px; }
+#admin-root .at-record-search { min-width: 220px; }
+#admin-root .at-record-search input { width: 220px; }
+#admin-root .at-record-search select { width: 190px; }
+#admin-root .at-query-actions button { white-space: nowrap; }
+
+#admin-root .at-dashboard-overview {
+  grid-template-columns: repeat(5, minmax(0, 1fr));
+  margin: 0 0 14px;
+}
+#admin-root .at-dashboard-overview .at-overview-card {
+  min-height: 154px;
+  padding: 24px 22px;
+  border: 1px solid #cfe2ff;
+  border-top-width: 1px;
+  background: #f2f7ff;
+  box-shadow: none;
+}
+#admin-root .at-dashboard-overview .at-overview-card.is-cyan { border-color: #cdebf7; background: #f1faff; }
+#admin-root .at-dashboard-overview .at-overview-card.is-indigo { border-color: #d8dcff; background: #f3f4ff; }
+#admin-root .at-dashboard-overview .at-overview-label { color: #2468ee; font-size: 14px; }
+#admin-root .at-dashboard-overview .is-cyan .at-overview-label { color: #0373a7; }
+#admin-root .at-dashboard-overview .is-indigo .at-overview-label { color: #4338ca; }
+#admin-root .at-dashboard-overview .at-overview-value { margin: 12px 0 8px; font-size: clamp(28px, 3vw, 40px); }
+#admin-root .at-dashboard-overview .at-overview-value small { margin-left: 3px; font-size: 14px; font-weight: 850; }
+#admin-root .at-dashboard-overview .at-overview-note { font-size: 12px; }
+
+#admin-root .at-period-status {
+  display: flex;
+  min-height: 52px;
+  margin-bottom: 34px;
+  padding: 14px 18px;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+  border-radius: 13px;
+  background: #f1f4f8;
+  color: #53657d;
+  font-size: 13px;
+  font-weight: 750;
+}
+#admin-root .at-period-status strong { color: #34445b; font-size: 14px; }
+
+#admin-root .at-dashboard-insights { margin: 0 0 32px; }
+#admin-root .at-dashboard-section-heading {
+  display: flex;
+  margin-bottom: 16px;
+  align-items: center;
+  gap: 11px;
+}
+#admin-root .at-section-icon { display: grid; width: 34px; height: 34px; flex: none; place-items: center; color: #2f6df2; }
+#admin-root .at-section-icon svg { width: 31px; height: 31px; overflow: visible; }
+#admin-root .at-section-icon path { stroke: currentColor; stroke-width: 1.8; stroke-linecap: round; stroke-linejoin: round; }
+#admin-root .at-dashboard-section-heading h2 { margin: 0; color: var(--at-shell-text); font-size: 22px; letter-spacing: -.025em; }
+#admin-root .at-dashboard-section-heading p { margin: 4px 0 0; color: var(--at-shell-muted); font-size: 12px; }
+#admin-root .at-insight-grid { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 16px; }
+#admin-root .at-insight-card {
+  min-width: 0;
+  padding: 22px;
+  border: 1px solid var(--at-shell-border);
+  border-radius: 20px;
+  background: #fff;
+  box-shadow: 0 10px 28px rgba(15, 23, 42, .045);
+}
+#admin-root .at-insight-card.is-age { grid-column: 1 / -1; }
+#admin-root .at-insight-card > header { display: flex; margin-bottom: 20px; align-items: flex-end; justify-content: space-between; gap: 12px; }
+#admin-root .at-insight-card > header span { color: #2f6df2; font-size: 10px; font-weight: 900; letter-spacing: .12em; }
+#admin-root .at-insight-card.is-facility > header span { color: #4941d0; }
+#admin-root .at-insight-card > header h3 { margin: 4px 0 0; color: #1e293b; font-size: 18px; }
+#admin-root .at-insight-card > header > strong { color: #64748b; font-size: 12px; white-space: nowrap; }
+#admin-root .at-bar-list { display: grid; gap: 14px; }
+#admin-root .at-bar-row {
+  display: grid;
+  grid-template-columns: minmax(88px, .24fr) minmax(120px, 1fr) minmax(44px, auto);
+  align-items: center;
+  gap: 12px;
+  color: #334155;
+  font-size: 12px;
+}
+#admin-root .at-bar-row > strong { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+#admin-root .at-bar-row > span:last-child { font-weight: 850; text-align: right; white-space: nowrap; }
+#admin-root .at-bar-track { height: 11px; overflow: hidden; border-radius: 999px; background: #dfe6ef; }
+#admin-root .at-bar-track > span { display: block; height: 100%; border-radius: inherit; background: linear-gradient(90deg, #2f6df2, #65a6f6); }
+#admin-root .at-insight-card.is-facility .at-bar-track > span,
+#admin-root .at-insight-card.is-age .at-bar-track > span { background: linear-gradient(90deg, #2f6df2, #65a6f6); }
+#admin-root .at-chart-empty { margin: 12px 0 4px; padding: 26px 12px; border-radius: 12px; background: #f8fafc; color: #94a3b8; font-size: 13px; text-align: center; }
+#admin-root .at-record-section { margin-top: 0; }
+#admin-root .at-record-section .at-log-header { margin-top: 0; }
+
+@media (max-width: 1580px) {
+  #admin-root .at-ref-filter { grid-template-columns: 1fr; align-items: start; row-gap: 22px; }
+  #admin-root .at-ref-filter form { width: 100%; flex-wrap: wrap; justify-content: flex-start; justify-self: stretch; }
+}
+
+@media (max-width: 1180px) {
+  #admin-root .at-dashboard-overview { grid-template-columns: repeat(3, minmax(0, 1fr)); }
+}
+
 @media (max-width: 1020px) {
   #admin-root .at-admin-workspace { grid-template-columns: 210px minmax(0, 1fr); }
   #admin-root .at-admin-sidebar.at-ref-tabs button { font-size: 13px; }
   #admin-root .at-ref-filter { grid-template-columns: 1fr; }
   #admin-root .at-ref-filter form { justify-content: flex-start; }
+  #admin-root .at-insight-grid { grid-template-columns: 1fr; }
+  #admin-root .at-insight-card.is-age { grid-column: auto; }
 }
 
 @media (max-width: 760px) {
@@ -1162,7 +1331,8 @@
     gap: 6px;
     overflow-x: auto;
     overflow-y: hidden;
-    background: #172033;
+    border-bottom: 1px solid var(--at-shell-border);
+    background: #fff;
   }
   #admin-root .at-admin-sidebar.at-ref-tabs button {
     min-width: 132px;
@@ -1179,9 +1349,12 @@
   #admin-root .at-admin-sidebar.at-ref-tabs button[data-at-view="activities"].is-active,
   #admin-root .at-admin-sidebar.at-ref-tabs button[data-at-view="booking-settings"].is-active { box-shadow: inset 0 -3px #60a5fa; }
   #admin-root .at-admin-content.at-ref-content { padding: 20px 12px 48px; }
+  #admin-root .at-dashboard-summary-panel { margin-bottom: 28px; padding: 20px 14px; border-radius: 22px; }
+  #admin-root .at-dashboard-summary-panel .at-ref-filter { min-height: 0; margin-bottom: 20px; padding: 0 0 20px; }
   #admin-root .at-page-heading,
   #admin-root .at-log-header { align-items: flex-start; flex-direction: column; }
   #admin-root .at-overview-grid { grid-template-columns: repeat(2, minmax(0, 1fr)); }
+  #admin-root .at-dashboard-overview { grid-template-columns: repeat(2, minmax(0, 1fr)); }
   #admin-root .at-ref-filter { padding: 16px; }
   #admin-root .at-ref-filter form,
   #admin-root .at-ref-month-range,
@@ -1195,14 +1368,19 @@
   #admin-root .at-record-search { width: 100%; }
   #admin-root .at-record-search input,
   #admin-root .at-record-search select { width: 100%; }
+  #admin-root .at-record-search { min-width: 0; }
   #admin-root .at-ref-section { padding: 18px 12px; }
   #admin-root .at-log-actions { width: 100%; justify-content: flex-start; }
   #admin-root .at-log-actions button { flex: 1 1 42%; justify-content: center; }
+  #admin-root .at-period-status { align-items: flex-start; flex-direction: column; }
+  #admin-root .at-bar-row { grid-template-columns: 82px minmax(80px, 1fr); gap: 8px; }
+  #admin-root .at-bar-row > span:last-child { grid-column: 2; font-size: 11px; text-align: left; }
 }
 
 @media (max-width: 420px) {
   #admin-root .at-ref-actions #at-ref-date { display: none; }
   #admin-root .at-overview-grid { grid-template-columns: 1fr; }
+  #admin-root .at-dashboard-overview { grid-template-columns: 1fr; }
   #admin-root .at-ref-date-range { flex-wrap: wrap; }
   #admin-root .at-ref-date-range span { display: none; }
   #admin-root .at-log-actions button { flex-basis: 100%; }
