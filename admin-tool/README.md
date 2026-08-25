@@ -23,7 +23,12 @@ authenticated and opened a data view. It provides:
 - one-shot, tab-scoped settings reads; visit deletion includes a recovery bin
 - tab-specific visit/reservation CSV preview and import; visit records also
   support deduplication, recovery, and round-trip backup
-- current-page detailed statistics and aggregate matching-record counts
+- current-month dashboard statistics by default; choosing another period does
+  not query Firestore until the operator presses the query button
+- selected-period visit, purpose, age, reservation, and facility breakdowns;
+  AR sports, karaoke room 1, and karaoke room 2 remain separate facilities
+- actual reservation-date filtering through `dateKey`, current-page detail
+  tables, and aggregate matching-record counts
 - combined CSV export
 
 CSV export, backup, and import deduplication intentionally scan matching data
